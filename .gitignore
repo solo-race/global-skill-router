@@ -1,6 +1,11 @@
 ## reference
-references/
+/references/
 
 ## application configs
 .agents/
 .codex/
+
+## Python
+.pytest_cache/
+__pycache__/
+*.py[cod]

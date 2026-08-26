@@ -1,0 +1,42 @@
+schema_version: 1
+skills:
+  - name: SpineCodex-skills
+    path: references/SpineCodex-skills
+    status: external
+    scenarios: [win-access-vba, win-android, wsl-python]
+    deps: []
+    composed_of: []
+    version: "2026-08-25"
+    description: Upstream 14-skill control architecture library; read-only analysis input.
+  - name: recycling-company-investigation
+    path: references/customer-research-skills/recycling-company-investigation
+    status: external
+    scenarios: [wsl-python]
+    deps: []
+    composed_of: []
+    version: "2026-08-25"
+    description: Self-built methodology-type research screening skill; read-only analysis input.
+  - name: access-vba-dev
+    path: references/access-vba-dev
+    status: external
+    scenarios: [win-access-vba]
+    deps: []
+    composed_of: []
+    version: "2026-08-25"
+    description: Self-built engineering-type VBA runtime-operations skill; read-only analysis input.
+  - name: research-investigation
+    path: development/skill/research-investigation
+    status: active
+    scenarios: [wsl-python]
+    deps: []
+    composed_of: []
+    version: "0.1.0"
+    description: Domain-neutral research investigation framework (built in P1).
+  - name: runtime-ops
+    path: development/skill/runtime-ops
+    status: planned
+    scenarios: []
+    deps: []
+    composed_of: []
+    version: "0.1.0"
+    description: Universal runtime operations framework (built in P2).
