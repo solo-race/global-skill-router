@@ -4,7 +4,7 @@
 
 Build a global SKILL system for the local Codex development environment ("Global Skill 结构构建"). Mandated workflow: analyze the reference skill libraries under `references/`, then rebuild the architecture under `development/skill/`. Target scenarios: Windows-native (SQL/Access/VBA), Android on Windows, WSL Python filtering.
 
-Deliverables are Markdown skill modules plus stdlib-only Python helpers — no application runtime, no build system.
+Deliverables are Markdown skill modules plus Python helper scripts (prefer stdlib-only; third-party imports only where declared, per Core Rule 5) — no application runtime, no build system.
 
 ## Required Reading
 
@@ -21,7 +21,7 @@ Do not load all documentation by default.
 2. New skills go under `development/skill/<kebab-case-name>/`. Mandatory `SKILL.md` with YAML frontmatter: `name` == directory slug; `description` ends with a "Use when …" trigger phrase.
 3. All paths inside a skill resolve against the skill's own directory. Never hardcode deployment paths (`.codex/skills/…`).
 4. SKILL.md bodies are English, kilobyte-scale; deep material goes into the skill's own `references/`.
-5. Helper scripts are stdlib-only Python 3 with colocated pytest suites (`test_<name>.py`). Declare per-skill runtime dependencies.
+5. Helper scripts are Python 3 with colocated pytest suites (`test_<name>.py`). Prefer stdlib-only; any third-party import must be declared here or in `development/docs/repo-conventions.md`. Declared dependencies: PyYAML (`development/tools/validate_skills.py`).
 6. High-blast-radius automation (database writes, VBA project changes) must carry Contract / Stop Conditions / backup-rollback conventions.
 7. Do not introduce tooling speculatively — no build systems, linters, or CI unless required.
 8. Before adding material anywhere ask: will this change an agent's decision? If not, leave it out.
