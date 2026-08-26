@@ -34,8 +34,8 @@ skills:
     description: Domain-neutral research investigation framework (built in P1).
   - name: runtime-ops
     path: development/skill/runtime-ops
-    status: planned
-    scenarios: []
+    status: active
+    scenarios: [win-access-vba]
     deps: []
     composed_of: []
     version: "0.1.0"
