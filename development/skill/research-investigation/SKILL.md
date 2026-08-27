@@ -27,8 +27,8 @@ Non-configurable in every run:
 1. Search results, snippets, candidate profiles, model output, and provider scores are discovery
    context, never fact excerpts.
 2. A material claim binds only to an accessible original or authoritative source body or document.
-   When nothing accessible supports it, the claim becomes a gap or a review reason — never a
-   finding.
+   When nothing accessible supports it, the claim becomes an `evidence_gaps` entry (`state:
+   unknown`) or a review reason — never a finding.
 3. Never invent source, fact, resource, or evidence identifiers. Copy only canonical identifiers
    the caller already provided and the active binding declares usable.
 4. `unknown`, partial coverage, blocked pages, and failed retrievals must never be transcribed
@@ -78,7 +78,8 @@ A profile (`profiles/<domain>.yaml`) is agent-loaded guidance, not an environmen
 no tool reads it automatically. This Core depends on the profile contract in
 [profile-contract.md](references/profile-contract.md), not on any specific dimension name or
 domain vocabulary. Load exactly one domain profile per investigation and ignore unrelated sibling
-directories.
+directories. Load-bearing profile-local guidance lives only under `profile_guidance`; `display`
+is presentation-only.
 
 ## Output boundary
 

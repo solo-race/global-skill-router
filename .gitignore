@@ -9,3 +9,6 @@
 .pytest_cache/
 __pycache__/
 *.py[cod]
+
+## ChatGPT operations
+.chatgpt/

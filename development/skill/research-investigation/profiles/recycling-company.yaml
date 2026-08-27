@@ -31,15 +31,6 @@ investigation_dimensions:
     purpose: Track capacity, investment, new facilities, automation, and recent expansion signals
       that can change review conclusions over time.
 
-language_policy:
-  executable_language: en
-  localized_alias_gates:
-    - explicit business approval for the target's local-language research
-    - translation review of each alias against its concept, not its label
-    - query testing before an alias enters any executed search path
-  unapproved_tables: former multilingual tables stay deactivated; they are history, not authority
-  language_gap: always recorded as manual_review_reasons metadata
-
 concept_groups:
   identity-and-facilities:
     [company, legal entity, group, subsidiary, facility, plant, site, factory, location,
@@ -73,7 +64,7 @@ query_examples:
   - '"Company Name" permit capacity expansion'
   - 'site:official.example "Company Name" process term'
 
-vocabulary_authority: null  # resolved only through project_bindings.vocabulary_authority
+vocabulary_authority: vocabulary_authority  # selects project_bindings.vocabulary_authority; degrades to use_profile_vocabulary_only when the consuming-project authority is unavailable
 
 relevance:
   scope: preliminary human-review hypothesis only; never a score, ranking, or decision input
@@ -81,13 +72,6 @@ relevance:
   rule: name plausible equipment or process categories with source-backed reasoning, state the
     missing evidence that could change the assessment, and set review_required true whenever the
     conclusion depends on inference or incomplete coverage
-
-domain_model:
-  chain: input -> internal operation -> output
-  optional: true  # a lens for this profile only; findings stay organized by dimensions
-  stages: [collection, trading, dismantling, sorting, size reduction, washing, separation,
-    extrusion, pelletizing, outsourced downstream work]
-  note: query each operation separately; a hit for one stage never proves another
 
 packet_extensions:
   preliminary_relevance:
@@ -97,6 +81,13 @@ packet_extensions:
       reasoning: ""
       review_required: true
     rule: hypothesis grounded in cited sources above; never exported as a decision
+
+pipeline_binding:
+  mode: canonical_candidates_when_supplied
+  reference_stages: [Acquisition, Source, Signal, Fact, Score]
+  consumes: [Source, Signal]
+  produces: [Fact-candidate]
+  never_promotes_to: [Score]
 
 project_bindings:
   vocabulary_authority:
@@ -115,21 +106,31 @@ project_bindings:
     required: false
     when_unavailable: review_packet_only
 
-pipeline_binding:
-  mode: canonical_candidates_when_supplied
-  reference_stages: [Acquisition, Source, Signal, Fact, Score]
-  consumes: [Source, Signal]
-  produces: [Fact-candidate]
-  never_promotes_to: [Score]
+profile_guidance:
+  language_policy:
+    executable_language: en
+    localized_alias_gates:
+      - explicit business approval for the target's local-language research
+      - translation review of each alias against its concept, not its label
+      - query testing before an alias enters any executed search path
+    unapproved_tables: former multilingual tables stay deactivated; they are history, not authority
+    language_gap: always recorded as manual_review_reasons metadata
 
-terminology_map:
-  SourceRecord: consuming-project canonical source record; exists only when the pipeline
-    supplies it
-  source_id: existing canonical identifier copied verbatim from a supplied SourceRecord; never
-    derived by hashing or pattern
-  EvidenceLink: evidence link binding excerpt, locator, and subject match to a supplied
-    SourceRecord
-  ev_*: consumer-generated evidence identifier family; this skill never emits one
+  domain_model:
+    chain: input -> internal operation -> output
+    optional: true  # a lens for this profile only; findings stay organized by dimensions
+    stages: [collection, trading, dismantling, sorting, size reduction, washing, separation,
+      extrusion, pelletizing, outsourced downstream work]
+    note: query each operation separately; a hit for one stage never proves another
+
+  terminology_map:
+    SourceRecord: consuming-project canonical source record; exists only when the pipeline
+      supplies it
+    source_id: existing canonical identifier copied verbatim from a supplied SourceRecord; never
+      derived by hashing or pattern
+    EvidenceLink: evidence link binding excerpt, locator, and subject match to a supplied
+      SourceRecord
+    ev_*: consumer-generated evidence identifier family; this skill never emits one
 
 display:
   display_name: Recycling Company Investigation

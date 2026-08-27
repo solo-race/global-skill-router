@@ -263,3 +263,235 @@ def test_report_shape_and_exit_code(tmp_path, monkeypatch, capsys):
     for error in report["errors"]:
         assert set(error) == {"code", "skill", "message"}
     assert "DUPLICATE_NAME" in captured.err
+
+
+# --- Profile Contract gate (plan 020: mechanical profile ABI) -------------------------
+
+
+def _valid_profile():
+    return {
+        "profile_schema_version": 1,
+        "domain": "alpha-domain",
+        "subject_type": "company",
+        "investigation_dimensions": [
+            {"id": "identity", "purpose": "Establish identity."},
+            {"id": "activity", "purpose": "Establish activity."},
+        ],
+        "concept_groups": {"identity": ["company", "registry"]},
+        "query_examples": ['"Name" registry'],
+        "vocabulary_authority": None,
+        "packet_extensions": {
+            "relevance": {"placed_at": "profile_extensions.relevance", "fields": {}}
+        },
+        "pipeline_binding": {
+            "mode": "canonical_candidates_when_supplied",
+            "reference_stages": ["Acquisition", "Source", "Signal", "Fact", "Score"],
+            "consumes": ["Source"],
+            "produces": ["Fact-candidate"],
+            "never_promotes_to": ["Score"],
+        },
+        "project_bindings": {
+            "vocab": {
+                "owner": "consuming_project",
+                "reference": "config/search_terms.yaml",
+                "required": False,
+                "when_unavailable": "use_profile_vocabulary_only",
+            }
+        },
+        "display": {"display_name": "Alpha"},
+    }
+
+
+def _profile_codes(tmp_path, payload, raw=None, slug="alpha-domain"):
+    profile_dir = tmp_path / "profiles"
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    path = profile_dir / f"{slug}.yaml"
+    if raw is not None:
+        path.write_text(raw, encoding="utf-8")
+    else:
+        path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    return [error["code"] for error in validate_skills.profile_errors(path)]
+
+
+def test_profile_gate_accepts_valid_profile(tmp_path):
+    assert _profile_codes(tmp_path, _valid_profile()) == []
+
+
+def test_profile_gate_accepts_resolved_vocabulary_authority(tmp_path):
+    payload = _valid_profile()
+    payload["vocabulary_authority"] = "vocab"
+    assert _profile_codes(tmp_path, payload) == []
+
+
+def test_profile_gate_rejects_duplicate_dimension_ids(tmp_path):
+    payload = _valid_profile()
+    payload["investigation_dimensions"][1]["id"] = "identity"
+    assert "PROFILE_DIMENSION_DUPLICATE_ID" in _profile_codes(tmp_path, payload)
+
+
+def test_profile_gate_rejects_binding_missing_owner(tmp_path):
+    payload = _valid_profile()
+    del payload["project_bindings"]["vocab"]["owner"]
+    assert "PROFILE_BINDING_INCOMPLETE" in _profile_codes(tmp_path, payload)
+
+
+def test_profile_gate_rejects_non_boolean_required(tmp_path):
+    payload = _valid_profile()
+    payload["project_bindings"]["vocab"]["required"] = "false"
+    assert "PROFILE_BINDING_REQUIRED_TYPE" in _profile_codes(tmp_path, payload)
+
+
+def test_profile_gate_rejects_unresolved_vocabulary_authority(tmp_path):
+    payload = _valid_profile()
+    payload["vocabulary_authority"] = "ghost-binding"
+    assert "PROFILE_VOCAB_AUTHORITY_UNRESOLVED" in _profile_codes(tmp_path, payload)
+
+
+def test_profile_gate_rejects_unsupported_schema_version(tmp_path):
+    payload = _valid_profile()
+    payload["profile_schema_version"] = 2
+    assert "PROFILE_SCHEMA_VERSION_UNSUPPORTED" in _profile_codes(tmp_path, payload)
+
+
+def test_profile_gate_rejects_missing_schema_version(tmp_path):
+    payload = _valid_profile()
+    del payload["profile_schema_version"]
+    assert "PROFILE_SCHEMA_VERSION_UNSUPPORTED" in _profile_codes(tmp_path, payload)
+
+
+def test_profile_gate_rejects_bad_extension_placement(tmp_path):
+    payload = _valid_profile()
+    payload["packet_extensions"]["relevance"]["placed_at"] = "findings.extra"
+    assert "PROFILE_EXTENSION_PLACEMENT" in _profile_codes(tmp_path, payload)
+
+
+def test_profile_gate_rejects_bad_pipeline_binding(tmp_path):
+    payload = _valid_profile()
+    del payload["pipeline_binding"]["produces"]
+    assert "PROFILE_PIPELINE_BINDING_INVALID" in _profile_codes(tmp_path, payload)
+
+
+def test_profile_gate_rejects_unknown_top_level_field(tmp_path):
+    payload = _valid_profile()
+    payload["scoring_policy"] = {"weight": 1}
+    assert "PROFILE_UNKNOWN_FIELD" in _profile_codes(tmp_path, payload)
+
+
+def test_profile_gate_rejects_domain_slug_mismatch(tmp_path):
+    payload = _valid_profile()
+    payload["domain"] = "other-domain"
+    assert "PROFILE_DOMAIN_MISMATCH" in _profile_codes(tmp_path, payload)
+
+
+def test_profile_gate_rejects_non_kebab_domain(tmp_path):
+    payload = _valid_profile()
+    payload["domain"] = "Alpha Domain"
+    assert "PROFILE_DOMAIN_FORMAT" in _profile_codes(tmp_path, payload)
+
+
+def test_profile_gate_rejects_empty_dimensions(tmp_path):
+    payload = _valid_profile()
+    payload["investigation_dimensions"] = []
+    assert "PROFILE_DIMENSIONS_INVALID" in _profile_codes(tmp_path, payload)
+
+
+def test_profile_gate_rejects_dimension_without_purpose(tmp_path):
+    payload = _valid_profile()
+    del payload["investigation_dimensions"][0]["purpose"]
+    assert "PROFILE_DIMENSION_INCOMPLETE" in _profile_codes(tmp_path, payload)
+
+
+def test_profile_gate_rejects_bad_concept_groups_type(tmp_path):
+    payload = _valid_profile()
+    payload["concept_groups"] = ["company"]
+    assert "PROFILE_CONCEPT_GROUPS_TYPE" in _profile_codes(tmp_path, payload)
+
+
+def test_profile_gate_rejects_bad_query_examples_type(tmp_path):
+    payload = _valid_profile()
+    payload["query_examples"] = {"identity": "company"}
+    assert "PROFILE_QUERY_EXAMPLES_TYPE" in _profile_codes(tmp_path, payload)
+
+
+def test_profile_gate_rejects_malformed_yaml(tmp_path):
+    assert "PROFILE_PARSE_ERROR" in _profile_codes(
+        tmp_path, None, raw="profile_schema_version: [unclosed\n"
+    )
+
+
+def test_profile_gate_rejects_empty_subject_type(tmp_path):
+    payload = _valid_profile()
+    payload["subject_type"] = ""
+    assert "PROFILE_SUBJECT_TYPE_INVALID" in _profile_codes(tmp_path, payload)
+
+
+def test_profile_gate_rejects_bad_guidance_type(tmp_path):
+    payload = _valid_profile()
+    payload["profile_guidance"] = ["language_policy"]
+    assert "PROFILE_GUIDANCE_TYPE" in _profile_codes(tmp_path, payload)
+
+
+def test_profile_gate_rejects_bad_display_type(tmp_path):
+    payload = _valid_profile()
+    payload["display"] = ["alpha"]
+    assert "PROFILE_DISPLAY_TYPE" in _profile_codes(tmp_path, payload)
+
+
+def _profile_manifest_tree(tmp_path, payload, status="active"):
+    skill_dir = tmp_path / "development" / "skill" / "profile-skill"
+    _write_skill_md(skill_dir, name="profile-skill")
+    profile_dir = skill_dir / "profiles"
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    (profile_dir / "alpha-domain.yaml").write_text(
+        yaml.safe_dump(payload, sort_keys=False), encoding="utf-8"
+    )
+    entries = [
+        _entry("spine-lib", "references/spine-lib", "external"),
+        _entry(
+            "profile-skill",
+            "development/skill/profile-skill",
+            status,
+            scenarios=["wsl-python"] if status == "active" else [],
+        ),
+    ]
+    return _run(tmp_path, entries)
+
+
+def test_active_entry_profile_gate_wired(tmp_path):
+    payload = _valid_profile()
+    payload["scoring_policy"] = {"weight": 1}
+    report = _profile_manifest_tree(tmp_path, payload, "active")
+    assert any(
+        error["code"] == "PROFILE_UNKNOWN_FIELD"
+        and error["skill"] == "profile-skill"
+        and error["message"].startswith("profiles/alpha-domain.yaml:")
+        for error in report["errors"]
+    )
+
+
+def test_planned_entry_profiles_also_gated(tmp_path):
+    payload = _valid_profile()
+    payload["scoring_policy"] = {"weight": 1}
+    report = _profile_manifest_tree(tmp_path, payload, "planned")
+    assert "PROFILE_UNKNOWN_FIELD" in _codes(report)
+
+
+def test_external_entry_profiles_not_gated(tmp_path):
+    payload = _valid_profile()
+    payload["scoring_policy"] = {"weight": 1}
+    external_dir = tmp_path / "references" / "profile-skill"
+    (external_dir / "profiles").mkdir(parents=True, exist_ok=True)
+    (external_dir / "profiles" / "alpha-domain.yaml").write_text(
+        yaml.safe_dump(payload, sort_keys=False), encoding="utf-8"
+    )
+    report = _run(
+        tmp_path,
+        [_entry("profile-skill", "references/profile-skill", "external")],
+    )
+    assert report["ok"] is True
+
+
+def test_repo_manifest_passes_profile_gate():
+    report = validate_skills.validate(validate_skills.DEFAULT_MANIFEST)
+    assert report["errors"] == []
+    assert report["ok"] is True

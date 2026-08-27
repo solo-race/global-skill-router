@@ -61,7 +61,7 @@ Each `findings[*]` records exactly:
 
 - `fact_type` — profile-meaningful claim category;
 - `claim` — the reconstructed statement;
-- `evidence_state` — one of the four states;
+- `evidence_state` — one of the four states;one of `confirmed`, `inferred`, or `conflicting`;
 - `source_urls` — must point at entries in `sources`;
 - `reasoning` — interpretation lives here, never inside excerpts;
 - `review_required`.
@@ -69,11 +69,14 @@ Each `findings[*]` records exactly:
 Rules: `discovery_only` URLs cannot support `confirmed`. `partial`/`failed` records may explain
 gaps but cannot support `confirmed` or `inferred` claims. A finding is a review candidate, not an
 exported canonical fact.
+A material question whose reviewed coverage yields no adequate support never becomes a finding;
+it is recorded in `evidence_gaps` with state `unknown`.
 
 ## Evidence gaps
 
-Each `evidence_gaps[*]` carries `question`, `state` (one of the four states), and `reason`.
-Failed or partial retrieval explains a gap; it never resolves one.
+Each `evidence_gaps[*]` carries `question`, `state` (always `unknown`), and `reason`. A covered
+question without adequate support lands here — never in `findings[]`. Failed or partial retrieval
+explains a gap; it never resolves one.
 
 ## Canonical candidates (gated)
 

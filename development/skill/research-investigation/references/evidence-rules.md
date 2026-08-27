@@ -16,7 +16,7 @@ output remains a human-review packet; these rules never create canonical facts i
 
 ## State vocabulary
 
-Use only these four states for material finding candidates:
+Assess every material question with exactly one of these four states:
 
 | State | Use when | Required handling |
 |---|---|---|
@@ -24,6 +24,11 @@ Use only these four states for material finding candidates:
 | `inferred` | Relevant accessible evidence supports a reasoned conclusion but does not state it explicitly. | Preserve reasoning, supporting excerpts, and mandatory human review. |
 | `unknown` | The reviewed coverage contains no adequate support. | Leave the value unresolved; record what was searched and why it remains unknown. |
 | `conflicting` | Two or more accessible sources identifying the same subject make materially incompatible claims. | Preserve all incompatible values and excerpts; never select a winner silently. |
+
+Routing: `confirmed`, `inferred`, and `conflicting` assessments become `findings[]` entries.
+`unknown` never becomes a finding: a question without adequate support is recorded once, in
+`evidence_gaps[]`, with state `unknown`, what was searched, and why support remains inadequate.
+`unknown` is an epistemic state — it never means "no", "does not exist", or "not relevant".
 
 ## Prohibited parallel states
 
