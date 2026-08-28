@@ -118,6 +118,10 @@ def test_unknown_routing_consistent_skil_and_references():
     assert 'never means "no"' in rules
     assert "a negative derived from missing or failed retrieval" in schema
     assert "never write definitive negatives solely because a search failed" in rules
+    # forbidden wording that would let unknown leak into findings.
+    assert "finding is unknown" not in rules
+    assert "finding is unknown" not in schema
+    assert "one of the four states;one of" not in schema
 
 
 def test_core_is_domain_neutral():
@@ -190,10 +194,10 @@ def test_synthetic_software_project_profile_needs_no_core_change(tmp_path):
 
 def test_malformed_profile_cannot_pass_activation_gate(tmp_path):
     """An unknown load-bearing top-level field must fail the manifest-level gate."""
-    skill_dir = tmp_path / "development" / "skill" / "profile-skill"
+    skill_dir = tmp_path / "development" / "skill" / "research-investigation"
     (skill_dir / "profiles").mkdir(parents=True, exist_ok=True)
     (skill_dir / "SKILL.md").write_text(
-        "---\nname: profile-skill\n"
+        "---\nname: research-investigation\n"
         "description: Profile probe. Use when probing.\n---\n\nBody.\n",
         encoding="utf-8",
     )
@@ -221,8 +225,8 @@ def test_malformed_profile_cannot_pass_activation_gate(tmp_path):
                 "schema_version": 1,
                 "skills": [
                     {
-                        "name": "profile-skill",
-                        "path": "development/skill/profile-skill",
+                        "name": "research-investigation",
+                        "path": "development/skill/research-investigation",
                         "status": "active",
                         "scenarios": ["wsl-python"],
                         "deps": [],

@@ -259,7 +259,7 @@ P1 实施后若 profile contract 或其机械 gate 改变 `repo-conventions.md` 
 
 本附录记录后续修复批对 §4(d) 与 §6 的落实与微调；Status 仍为 `done`，因为其验收条件已在本次修复后真实满足（§6.6 的机械 gate 已存在于平台校验器并实际运行）。
 
-- **Profile gate 落地**：§4(d)/§6.6 中“在 P1 扩 validator 还是 P3 lifecycle gate”的选择以扩 validator 收场——`development/tools/validate_skills.py` 新增 `profile_errors()`，对每个 active/planned 且含 `profiles/` 目录的 manifest 条目逐一机械校验 profile 文件。external 条目不校验。gate 不检查外部 binding 对象是否存在（属运行时解析）。
+- **Profile gate 落地**：§4(d)/§6.6 中“在 P1 扩 validator 还是 P3 lifecycle gate”的选择以扩 validator 收场——`development/tools/validate_skills.py` 新增 `profile_errors()`，对 active/planned 且 name 为 `research-investigation` 并含 `profiles/` 目录的 manifest 条目逐一机械校验其 profile 文件。external 条目不校验。gate 不检查外部 binding 对象是否存在（属运行时解析）。
 - **闭合 ABI 与 guidance 命名空间**：§4(d) 的“Extra sections”（未知 top-level 段落仅 stop-and-confirm）收紧为闭合字段集：固定 ABI 字段 + `display` + 新增 `profile_guidance` 命名空间。承重的 profile-local 语义（`language_policy`/`domain_model`/`terminology_map`）必须位于 `profile_guidance.*`；未知 top-level 键在机械 gate 中失败（`PROFILE_UNKNOWN_FIELD`），不再依赖散文约定与 agent 猜测。
 - **Unknown 单一输出位置**：§3(b) Contract 2 与 `output-schema.md`/`evidence-rules.md` 统一为——`confirmed`/`inferred`/`conflicting` 进入 `findings[]`；无 adequate support 的 unresolved question 以 `unknown` 落入 `evidence_gaps[]`，不再允许 `unknown` 形式的 evidence 进入 findings。
 - **Vocabulary authority 选择修复**：recycling profile 的 `vocabulary_authority` 由 `null` 改为引用 `project_bindings.vocabulary_authority`，恢复原 skill 的 consuming-project 词表权威语义；gate 通过 `PROFILE_VOCAB_AUTHORITY_UNRESOLVED` 防止“binding 存在但永不被引用”的漂移。

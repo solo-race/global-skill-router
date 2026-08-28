@@ -80,8 +80,9 @@ extracted, record the failure and continue with the next relevant lane; never si
 an inaccessible primary source with a snippet, and never claim absence because a page did not
 load.
 
-Failed and partial retrievals remain audit information: they may explain why a finding is
-`unknown`, but they cannot support a negative about the subject. Stop retrying blocked endpoints.
+Failed and partial retrievals remain audit information: they may explain why a question enters
+`evidence_gaps[]` with state `unknown`, but they cannot support a negative about the subject.
+Stop retrying blocked endpoints.
 
 ## Conflicts and negative claims
 

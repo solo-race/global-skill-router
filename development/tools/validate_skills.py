@@ -251,6 +251,14 @@ def profile_errors(profile_path, label=None):
                         f"dimension at index {index} is missing a non-empty id",
                     )
                 )
+            elif not KEBAB_CASE.match(dim_id):
+                errors.append(
+                    _err(
+                        "PROFILE_DIMENSION_ID_FORMAT",
+                        label,
+                        f"dimension id {dim_id!r} is not kebab-case",
+                    )
+                )
             else:
                 ids.append(dim_id)
             purpose = entry.get("purpose")
@@ -370,18 +378,15 @@ def profile_errors(profile_path, label=None):
     else:
         for key, entry in extensions.items():
             placement = entry.get("placed_at") if isinstance(entry, dict) else None
-            if (
-                not isinstance(placement, str)
-                or not placement.startswith(PROFILE_EXTENSION_PREFIX)
-                or len(placement) <= len(PROFILE_EXTENSION_PREFIX)
-            ):
+            expected = f"{PROFILE_EXTENSION_PREFIX}{key}"
+            if placement != expected:
                 errors.append(
                     _err(
                         "PROFILE_EXTENSION_PLACEMENT",
                         label,
                         (
-                            f"extension {key!r}: placed_at must address "
-                            f"profile_extensions.<key>, got {placement!r}"
+                            f"extension {key!r}: placed_at must equal "
+                            f"{expected!r}, got {placement!r}"
                         ),
                     )
                 )
@@ -541,11 +546,13 @@ def _check_entry(entry, index, known_names, root, errors):
                     "active entries must declare at least one scenario",
                 )
             )
-    # Profile Contract gate (plan 020): active/planned entries whose skill directory carries
-    # a profiles/ directory must hold machine-valid profile files. External entries are
+    # Profile Contract gate (plan 020): the research-investigation skill owns the Profile
+    # Contract ABI. Only active/planned entries named research-investigation whose skill
+    # directory carries a profiles/ directory are validated here. External entries are
     # read-only upstream libraries and are never held to this ABI.
     if (
-        status in PROFILE_ASSESSABLE_STATUSES
+        name == "research-investigation"
+        and status in PROFILE_ASSESSABLE_STATUSES
         and abs_path is not None
         and abs_path.is_dir()
     ):

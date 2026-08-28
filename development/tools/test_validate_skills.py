@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 _SPEC = importlib.util.spec_from_file_location(
@@ -329,6 +330,20 @@ def test_profile_gate_rejects_duplicate_dimension_ids(tmp_path):
     assert "PROFILE_DIMENSION_DUPLICATE_ID" in _profile_codes(tmp_path, payload)
 
 
+@pytest.mark.parametrize(
+    "bad_id",
+    [
+        "release_status",
+        "ReleaseStatus",
+        "release status",
+    ],
+)
+def test_profile_gate_rejects_non_kebab_dimension_id(tmp_path, bad_id):
+    payload = _valid_profile()
+    payload["investigation_dimensions"][0]["id"] = bad_id
+    assert "PROFILE_DIMENSION_ID_FORMAT" in _profile_codes(tmp_path, payload)
+
+
 def test_profile_gate_rejects_binding_missing_owner(tmp_path):
     payload = _valid_profile()
     del payload["project_bindings"]["vocab"]["owner"]
@@ -362,6 +377,12 @@ def test_profile_gate_rejects_missing_schema_version(tmp_path):
 def test_profile_gate_rejects_bad_extension_placement(tmp_path):
     payload = _valid_profile()
     payload["packet_extensions"]["relevance"]["placed_at"] = "findings.extra"
+    assert "PROFILE_EXTENSION_PLACEMENT" in _profile_codes(tmp_path, payload)
+
+
+def test_profile_gate_rejects_relevance_extension_misplaced(tmp_path):
+    payload = _valid_profile()
+    payload["packet_extensions"]["relevance"]["placed_at"] = "profile_extensions.other"
     assert "PROFILE_EXTENSION_PLACEMENT" in _profile_codes(tmp_path, payload)
 
 
@@ -438,8 +459,8 @@ def test_profile_gate_rejects_bad_display_type(tmp_path):
 
 
 def _profile_manifest_tree(tmp_path, payload, status="active"):
-    skill_dir = tmp_path / "development" / "skill" / "profile-skill"
-    _write_skill_md(skill_dir, name="profile-skill")
+    skill_dir = tmp_path / "development" / "skill" / "research-investigation"
+    _write_skill_md(skill_dir, name="research-investigation")
     profile_dir = skill_dir / "profiles"
     profile_dir.mkdir(parents=True, exist_ok=True)
     (profile_dir / "alpha-domain.yaml").write_text(
@@ -448,8 +469,8 @@ def _profile_manifest_tree(tmp_path, payload, status="active"):
     entries = [
         _entry("spine-lib", "references/spine-lib", "external"),
         _entry(
-            "profile-skill",
-            "development/skill/profile-skill",
+            "research-investigation",
+            "development/skill/research-investigation",
             status,
             scenarios=["wsl-python"] if status == "active" else [],
         ),
@@ -463,7 +484,7 @@ def test_active_entry_profile_gate_wired(tmp_path):
     report = _profile_manifest_tree(tmp_path, payload, "active")
     assert any(
         error["code"] == "PROFILE_UNKNOWN_FIELD"
-        and error["skill"] == "profile-skill"
+        and error["skill"] == "research-investigation"
         and error["message"].startswith("profiles/alpha-domain.yaml:")
         for error in report["errors"]
     )
@@ -479,16 +500,39 @@ def test_planned_entry_profiles_also_gated(tmp_path):
 def test_external_entry_profiles_not_gated(tmp_path):
     payload = _valid_profile()
     payload["scoring_policy"] = {"weight": 1}
-    external_dir = tmp_path / "references" / "profile-skill"
+    external_dir = tmp_path / "references" / "research-investigation"
     (external_dir / "profiles").mkdir(parents=True, exist_ok=True)
     (external_dir / "profiles" / "alpha-domain.yaml").write_text(
         yaml.safe_dump(payload, sort_keys=False), encoding="utf-8"
     )
     report = _run(
         tmp_path,
-        [_entry("profile-skill", "references/profile-skill", "external")],
+        [_entry("research-investigation", "references/research-investigation", "external")],
     )
     assert report["ok"] is True
+
+
+def test_non_research_skill_with_profiles_not_gated(tmp_path):
+    """Only research-investigation entries are held to the Research Profile Contract."""
+    skill_dir = tmp_path / "development" / "skill" / "other-active"
+    _write_skill_md(skill_dir, name="other-active")
+    profile_dir = skill_dir / "profiles"
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    (profile_dir / "foo.yaml").write_text(
+        "scoring_policy:\n  weight: 1\n", encoding="utf-8"
+    )
+    entries = [
+        _entry("spine-lib", "references/spine-lib", "external"),
+        _entry(
+            "other-active",
+            "development/skill/other-active",
+            "active",
+            scenarios=["wsl-python"],
+        ),
+    ]
+    report = _run(tmp_path, entries)
+    assert report["ok"] is True
+    assert not any(error["code"].startswith("PROFILE_") for error in report["errors"])
 
 
 def test_repo_manifest_passes_profile_gate():

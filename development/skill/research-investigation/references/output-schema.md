@@ -61,7 +61,7 @@ Each `findings[*]` records exactly:
 
 - `fact_type` — profile-meaningful claim category;
 - `claim` — the reconstructed statement;
-- `evidence_state` — one of the four states;one of `confirmed`, `inferred`, or `conflicting`;
+- `evidence_state` — one of `confirmed`, `inferred`, or `conflicting`;
 - `source_urls` — must point at entries in `sources`;
 - `reasoning` — interpretation lives here, never inside excerpts;
 - `review_required`.
