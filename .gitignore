@@ -1,9 +1,12 @@
 ## reference
-/references/
+references/**
 
 ## application configs
 .agents/
 .codex/
+
+## github
+.github/**
 
 ## Python
 .pytest_cache/
