@@ -29,7 +29,7 @@ Do not load all documentation by default.
 ## Commands
 
 ```bash
-python -m pytest references/SpineCodex-skills   # run all tests
+py -3 development/tools/run_tests.py [pytest args...]   # run tests
 ```
 
 ## Documentation Map
@@ -39,3 +39,4 @@ python -m pytest references/SpineCodex-skills   # run all tests
 | [`architecture-ref/README.md`](development/docs/architecture-ref/README.md) | Index of three architecture reviews split into 7 concern modules |
 | [`repo-conventions.md`](development/docs/repo-conventions.md) | Expanded repo conventions moved out of this file |
 | [`plans/`](development/docs/plans/000-platform-skeleton.md) | Execution roadmap: platform skeleton + per-phase plans |
+| [`scenario-routing.md`](development/docs/scenario-routing.md) | Derived scenario route projection; manifest remains authoritative |

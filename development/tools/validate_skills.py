@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Skill registry validator for development/skill/manifest.yaml.
 
-Checks the registry against the matrix in development/docs/plans/010-p0-foundation.md
-section 3 (E1-E10, F1-F3, U1) with the per-status layered semantics of its
-section 2(c): external/active paths must exist; planned entries may be
-forward-registered before their directory exists.
+Checks the registry against the P3 manifest/control contract. The current
+manifest schema is v2: read-only design sources, deployable skills, and
+framework-owned adapters have separate registry sections. Planned entries may
+be forward-registered before their directory exists; active entries must pass
+their complete activation gates.
 
 Additionally enforces the P1 Profile Contract gate (plan 020): every active/planned
 entry whose skill directory contains a profiles/ subdirectory must have every
@@ -32,9 +33,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MANIFEST = REPO_ROOT / "development" / "skill" / "manifest.yaml"
 REQUIRED_FIELDS = ("name", "path", "status", "version", "description")
 LIST_FIELDS = ("scenarios", "deps", "composed_of")
-VALID_STATUSES = frozenset({"external", "planned", "active"})
+VALID_STATUSES = frozenset({"planned", "active"})
+VALID_SOURCE_KINDS = frozenset({"upstream-snapshot", "local-reference"})
 VALID_SCENARIOS = frozenset({"win-access-vba", "win-android", "wsl-python"})
+VALID_VERIFICATION_KINDS = frozenset({"linear", "partial_order", "independent_checks"})
+VALID_MUTATION_SUPPORT = frozenset({"none", "bounded", "high-impact"})
 KEBAB_CASE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+RECOVERY_HEADING = re.compile(r"^##+\s+(?:\d+\.\s*)?recovery(?:\s+model)?\b.*$", re.I | re.M)
 # Closed top-level field set of the research-investigation Profile Contract (profile-contract.md).
 # Any other top-level key is a contract violation, never tolerated prose.
 PROFILE_KNOWN_FIELDS = frozenset({
@@ -63,11 +68,22 @@ def _err(code, skill, message):
     return {"code": code, "skill": skill, "message": message}
 
 
-def _report(ok, manifest, skills_checked, errors):
+def _report(
+    ok,
+    manifest,
+    skills_checked,
+    errors,
+    sources_checked=0,
+    adapters_checked=0,
+    routes=None,
+):
     return {
         "ok": ok,
         "manifest": manifest,
         "skills_checked": skills_checked,
+        "sources_checked": sources_checked,
+        "adapters_checked": adapters_checked,
+        "routes": routes or {},
         "errors": errors,
     }
 
@@ -84,24 +100,34 @@ def _load_manifest(manifest_path, errors):
     except yaml.YAMLError as exc:
         errors.append(_err("MANIFEST_PARSE_ERROR", "(manifest)", str(exc)))
         return None
-    if not isinstance(data, dict) or not isinstance(data.get("skills"), list):
+    if not isinstance(data, dict):
         errors.append(
             _err(
                 "MANIFEST_PARSE_ERROR",
                 "(manifest)",
-                "manifest must be a mapping with a 'skills' list",
+                "manifest must be a mapping",
             )
         )
         return None
-    if data.get("schema_version") != 1:
+    if data.get("schema_version") != 2:
         errors.append(
             _err(
                 "SCHEMA_VERSION_UNSUPPORTED",
                 "(manifest)",
-                f"schema_version must be 1, got {data.get('schema_version')!r}",
+                f"schema_version must be 2, got {data.get('schema_version')!r}",
             )
         )
         return None
+    for section in ("sources", "skills", "adapters"):
+        if not isinstance(data.get(section), list):
+            errors.append(
+                _err(
+                    "MANIFEST_SECTION_TYPE",
+                    "(manifest)",
+                    f"manifest section '{section}' must be a list",
+                )
+            )
+            data[section] = []
     return data
 
 
@@ -454,131 +480,357 @@ def profile_errors(profile_path, label=None):
     return errors
 
 
-def _check_entry(entry, index, known_names, root, errors):
-    """E3-E10 plus F1-F3 for one manifest entry; appends to errors."""
+def _read_frontmatter_document(path):
+    """Return (frontmatter, body, error_message) for a fenced document."""
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError as exc:
+        return None, "", str(exc)
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return None, text, "missing '---' fenced frontmatter block"
+    close = None
+    for index in range(1, len(lines)):
+        if lines[index].strip() == "---":
+            close = index
+            break
+    if close is None:
+        return None, text, "missing closing frontmatter fence"
+    try:
+        frontmatter = yaml.safe_load("\n".join(lines[1:close]))
+    except yaml.YAMLError as exc:
+        return None, "\n".join(lines[close + 1 :]), str(exc)
+    if not isinstance(frontmatter, dict):
+        return None, "\n".join(lines[close + 1 :]), "frontmatter must be a mapping"
+    return frontmatter, "\n".join(lines[close + 1 :]), None
+
+
+def _safe_repo_path(root, value):
+    """Resolve a repo-relative path, returning None for absolute/escaping paths."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    normalized = value.replace("\\", "/")
+    if PurePosixPath(normalized).is_absolute() or re.match(r"^[A-Za-z]:", normalized):
+        return None
+    candidate = (Path(root) / Path(normalized)).resolve()
+    try:
+        candidate.relative_to(Path(root).resolve())
+    except ValueError:
+        return None
+    return candidate
+
+
+def _source_errors(entry, index, root):
     if not isinstance(entry, dict):
-        errors.append(_err("MISSING_FIELD", f"<entry {index}>", "entry must be a mapping"))
+        return [_err("MANIFEST_SECTION_TYPE", f"<source {index}>", "source entry must be a mapping")]
+    label = entry.get("id") if isinstance(entry.get("id"), str) else f"<source {index}>"
+    errors = []
+    for field in ("id", "path", "kind", "version", "description"):
+        if not isinstance(entry.get(field), str) or not entry[field].strip():
+            errors.append(_err("SOURCE_FIELD_INVALID", label, f"source field '{field}' must be a non-empty string"))
+    if entry.get("kind") not in VALID_SOURCE_KINDS:
+        errors.append(_err("SOURCE_FIELD_INVALID", label, f"source kind must be one of {sorted(VALID_SOURCE_KINDS)}"))
+    if not isinstance(entry.get("required"), bool):
+        errors.append(_err("SOURCE_FIELD_INVALID", label, "source required must be a boolean"))
+    path = _safe_repo_path(root, entry.get("path"))
+    if path is None:
+        errors.append(_err("SOURCE_PATH_INVALID", label, f"source path must stay within repository: {entry.get('path')!r}"))
+    elif not path.exists():
+        if entry.get("required") is True:
+            errors.append(_err("SOURCE_PATH_MISSING", label, f"required source path does not exist: {entry.get('path')}"))
+    elif not path.is_dir():
+        errors.append(_err("SOURCE_NOT_DIRECTORY", label, f"source path is not a directory: {entry.get('path')}"))
+    return errors
+
+
+def _metadata_errors(metadata_path, skill_name):
+    try:
+        data = yaml.safe_load(Path(metadata_path).read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        return [_err("ENTRYPOINT_METADATA_INVALID", skill_name, f"cannot parse metadata: {exc}")]
+    if not isinstance(data, dict) or not isinstance(data.get("interface"), dict):
+        return [_err("ENTRYPOINT_METADATA_INVALID", skill_name, "metadata must contain an interface mapping")]
+    interface = data["interface"]
+    errors = []
+    for field in ("display_name", "short_description", "default_prompt"):
+        value = interface.get(field)
+        if not isinstance(value, str) or not value.strip():
+            errors.append(_err("ENTRYPOINT_METADATA_INVALID", skill_name, f"interface.{field} must be a non-empty string"))
+    prompt = interface.get("default_prompt")
+    if isinstance(prompt, str) and f"${skill_name}" not in prompt:
+        errors.append(_err("ENTRYPOINT_PROMPT_NO_TRIGGER", skill_name, f"default_prompt must contain ${skill_name}"))
+    return errors
+
+
+def _entrypoint_errors(skill_dir, skill_name, status, entrypoint):
+    if not isinstance(entrypoint, bool):
+        return [_err("ENTRYPOINT_FLAG_INVALID", skill_name, "entrypoint must be a boolean")]
+    if skill_dir is None or not skill_dir.is_dir():
+        if status == "active" and entrypoint:
+            return [_err("ENTRYPOINT_METADATA_MISSING", skill_name, "active entrypoint skill directory is missing")]
+        return []
+    metadata_path = skill_dir / "agents" / "openai.yaml"
+    if not metadata_path.is_file():
+        if status == "active" and entrypoint:
+            return [_err("ENTRYPOINT_METADATA_MISSING", skill_name, f"missing metadata: {metadata_path}")]
+        return []
+    return _metadata_errors(metadata_path, skill_name)
+
+
+def _adapter_contract_errors(adapter_path, manifest_entry):
+    label = manifest_entry.get("name", "<adapter>")
+    frontmatter, body, parse_error = _read_frontmatter_document(adapter_path)
+    if parse_error:
+        return [_err("ADAPTER_FRONTMATTER_MISSING", label, parse_error)]
+    errors = []
+    if frontmatter.get("adapter_schema_version") != 1:
+        errors.append(_err("ADAPTER_SCHEMA_VERSION_UNSUPPORTED", label, "adapter_schema_version must be 1"))
+    stem = PurePosixPath(str(manifest_entry.get("path", ""))).stem
+    if frontmatter.get("adapter") != label or stem != label:
+        errors.append(_err("ADAPTER_ID_MISMATCH", label, f"frontmatter adapter, manifest name, and file stem must equal {label!r}"))
+
+    manifest_envs = manifest_entry.get("environments")
+    if not isinstance(manifest_envs, list) or not manifest_envs or any(not isinstance(value, str) for value in manifest_envs):
+        manifest_envs = []
+    fm_envs = frontmatter.get("environments")
+    if not isinstance(fm_envs, list) or not fm_envs or any(not isinstance(value, str) or value not in VALID_SCENARIOS for value in fm_envs):
+        errors.append(_err("ADAPTER_ENVIRONMENTS_INVALID", label, "frontmatter environments must be a non-empty list of valid scenarios"))
+        fm_envs = []
+    if manifest_envs and sorted(manifest_envs) != sorted(fm_envs):
+        errors.append(_err("ADAPTER_ENVIRONMENT_MISMATCH", label, "manifest and adapter frontmatter environments must match"))
+
+    capabilities = frontmatter.get("capabilities")
+    if not isinstance(capabilities, list) or not capabilities or any(not isinstance(value, str) or not value.strip() for value in capabilities):
+        errors.append(_err("ADAPTER_CAPABILITIES_INVALID", label, "capabilities must be a non-empty list of strings"))
+    elif len(capabilities) != len(set(capabilities)):
+        errors.append(_err("ADAPTER_CAPABILITY_DUPLICATE", label, "capabilities must not contain duplicates"))
+
+    task_modes = frontmatter.get("task_modes")
+    if not isinstance(task_modes, dict):
+        errors.append(_err("ADAPTER_TASK_MODES_INVALID", label, "task_modes must be a mapping"))
+    else:
+        if "closed" not in task_modes or not isinstance(task_modes.get("closed"), bool):
+            errors.append(_err("ADAPTER_TASK_MODES_INVALID", label, "task_modes.closed must be an explicit boolean"))
+        modes = task_modes.get("modes")
+        if not isinstance(modes, list) or any(not isinstance(value, str) or not value.strip() for value in modes):
+            errors.append(_err("ADAPTER_TASK_MODES_INVALID", label, "task_modes.modes must be a list of strings"))
+        elif len(modes) != len(set(modes)):
+            errors.append(_err("ADAPTER_TASK_MODES_INVALID", label, "task_modes.modes must not contain duplicates"))
+
+    verification = frontmatter.get("verification_model_kind")
+    if verification not in VALID_VERIFICATION_KINDS:
+        errors.append(_err("ADAPTER_VERIFICATION_KIND_INVALID", label, f"verification_model_kind must be one of {sorted(VALID_VERIFICATION_KINDS)}"))
+    mutation = frontmatter.get("mutation_support")
+    if mutation not in VALID_MUTATION_SUPPORT:
+        errors.append(_err("ADAPTER_MUTATION_SUPPORT_INVALID", label, f"mutation_support must be one of {sorted(VALID_MUTATION_SUPPORT)}"))
+    elif mutation != "none" and not RECOVERY_HEADING.search(body):
+        errors.append(_err("ADAPTER_RECOVERY_SECTION_MISSING", label, "mutating adapters must declare a Recovery model section"))
+    return errors
+
+
+def _adapter_errors(entry, index, root, skill_statuses):
+    if not isinstance(entry, dict):
+        return [_err("MANIFEST_SECTION_TYPE", f"<adapter {index}>", "adapter entry must be a mapping")]
+    label = entry.get("name") if isinstance(entry.get("name"), str) else f"<adapter {index}>"
+    errors = []
+    for field in ("name", "path", "status", "owner_skill", "version", "description"):
+        if not isinstance(entry.get(field), str) or not entry[field].strip():
+            errors.append(_err("ADAPTER_FIELD_INVALID", label, f"adapter field '{field}' must be a non-empty string"))
+    status = entry.get("status")
+    if status not in VALID_STATUSES:
+        errors.append(_err("INVALID_STATUS", label, f"adapter status must be one of {sorted(VALID_STATUSES)}"))
+    owner = entry.get("owner_skill")
+    if owner not in skill_statuses:
+        errors.append(_err("ADAPTER_OWNER_UNKNOWN", label, f"owner skill {owner!r} is not registered"))
+    elif status == "active" and skill_statuses[owner] != "active":
+        errors.append(_err("ADAPTER_OWNER_NOT_ACTIVE", label, f"active adapter owner {owner!r} is not active"))
+    envs = entry.get("environments")
+    if not isinstance(envs, list) or not envs or any(not isinstance(value, str) or value not in VALID_SCENARIOS for value in envs) or len(envs) != len(set(envs)):
+        errors.append(_err("ADAPTER_ENVIRONMENTS_INVALID", label, "manifest environments must be a non-empty list of unique valid scenarios"))
+    rel_path = entry.get("path")
+    adapter_path = root / rel_path if isinstance(rel_path, str) and rel_path else None
+    if status == "active" and (adapter_path is None or not adapter_path.is_file()):
+        errors.append(_err("ACTIVE_ADAPTER_PATH_MISSING", label, f"active adapter file is missing: {rel_path}"))
+    if adapter_path is not None and adapter_path.is_file():
+        errors.extend(_adapter_contract_errors(adapter_path, entry))
+    return errors
+
+
+def _check_skill_entry_v2(entry, index, root, errors):
+    if not isinstance(entry, dict):
+        errors.append(_err("MANIFEST_SECTION_TYPE", f"<skill {index}>", "skill entry must be a mapping"))
         return
-    name = entry.get("name")
-    label = name if isinstance(name, str) and name else f"<entry {index}>"
+    name = entry.get("name") if isinstance(entry.get("name"), str) and entry.get("name") else f"<skill {index}>"
     for field in REQUIRED_FIELDS:
         value = entry.get(field)
         if not isinstance(value, str) or not value.strip():
-            errors.append(
-                _err(
-                    "MISSING_FIELD",
-                    label,
-                    f"required field '{field}' must be a non-empty string",
-                )
-            )
+            errors.append(_err("MISSING_FIELD", name, f"required field '{field}' must be a non-empty string"))
     status = entry.get("status")
     if status not in VALID_STATUSES:
-        errors.append(
-            _err(
-                "INVALID_STATUS",
-                label,
-                f"status must be one of {sorted(VALID_STATUSES)}, got {status!r}",
-            )
-        )
+        errors.append(_err("INVALID_STATUS", name, f"status must be one of {sorted(VALID_STATUSES)}, got {status!r}"))
     lists = {}
     for field in LIST_FIELDS:
         value = entry.get(field)
         if value is None:
             value = []
         if not isinstance(value, list):
-            errors.append(_err("MISSING_FIELD", label, f"'{field}' must be a list"))
+            errors.append(_err("MISSING_FIELD", name, f"'{field}' must be a list"))
             value = []
         lists[field] = value
     for scenario in lists["scenarios"]:
         if scenario not in VALID_SCENARIOS:
-            errors.append(
-                _err(
-                    "INVALID_SCENARIO",
-                    label,
-                    f"scenario '{scenario}' not in {sorted(VALID_SCENARIOS)}",
-                )
-            )
-    for ref in lists["composed_of"]:
-        if ref not in known_names:
-            errors.append(
-                _err(
-                    "COMPOSED_OF_UNKNOWN_REF",
-                    label,
-                    f"composed_of reference '{ref}' does not resolve to an entry in this manifest",
-                )
-            )
+            errors.append(_err("INVALID_SCENARIO", name, f"scenario '{scenario}' not in {sorted(VALID_SCENARIOS)}"))
+    if not isinstance(entry.get("entrypoint"), bool):
+        errors.append(_err("ENTRYPOINT_FLAG_INVALID", name, "entrypoint must be a boolean"))
+
     rel_path = entry.get("path")
-    abs_path = root / rel_path if isinstance(rel_path, str) and rel_path else None
-    if status == "external":
-        if abs_path is not None and not abs_path.exists():
-            errors.append(
-                _err("EXTERNAL_PATH_MISSING", label, f"path does not exist: {rel_path}")
-            )
-    elif status == "planned":
-        # Layered semantics (010 section 2(c)): a planned entry may exist as a
-        # forward registration without any directory; F1-F3 run only when both
-        # the directory and its SKILL.md are present.
-        if abs_path is not None and (abs_path / "SKILL.md").is_file():
-            basename = PurePosixPath(rel_path).name
-            errors.extend(_frontmatter_errors(abs_path, name, basename))
+    skill_dir = root / rel_path if isinstance(rel_path, str) and rel_path else None
+    if status == "planned":
+        if skill_dir is not None and (skill_dir / "SKILL.md").is_file():
+            errors.extend(_frontmatter_errors(skill_dir, name, PurePosixPath(rel_path).name))
     elif status == "active":
-        if abs_path is not None:
-            if not abs_path.exists():
-                errors.append(
-                    _err("ACTIVE_PATH_MISSING", label, f"path does not exist: {rel_path}")
-                )
-            elif not (abs_path / "SKILL.md").is_file():
-                errors.append(
-                    _err(
-                        "ACTIVE_SKILL_MD_MISSING",
-                        label,
-                        f"missing SKILL.md under: {rel_path}",
-                    )
-                )
-            else:
-                basename = PurePosixPath(rel_path).name
-                errors.extend(_frontmatter_errors(abs_path, name, basename))
+        if skill_dir is None or not skill_dir.exists():
+            errors.append(_err("ACTIVE_PATH_MISSING", name, f"path does not exist: {rel_path}"))
+        elif not (skill_dir / "SKILL.md").is_file():
+            errors.append(_err("ACTIVE_SKILL_MD_MISSING", name, f"missing SKILL.md under: {rel_path}"))
+        else:
+            errors.extend(_frontmatter_errors(skill_dir, name, PurePosixPath(rel_path).name))
         if not lists["scenarios"]:
-            errors.append(
-                _err(
-                    "ACTIVE_EMPTY_SCENARIOS",
-                    label,
-                    "active entries must declare at least one scenario",
-                )
-            )
-    # Profile Contract gate (plan 020): the research-investigation skill owns the Profile
-    # Contract ABI. Only active/planned entries named research-investigation whose skill
-    # directory carries a profiles/ directory are validated here. External entries are
-    # read-only upstream libraries and are never held to this ABI.
+            errors.append(_err("ACTIVE_EMPTY_SCENARIOS", name, "active entries must declare at least one scenario"))
+
+    if isinstance(entry.get("entrypoint"), bool):
+        errors.extend(_entrypoint_errors(skill_dir, name, status, entry.get("entrypoint")))
+
     if (
         name == "research-investigation"
         and status in PROFILE_ASSESSABLE_STATUSES
-        and abs_path is not None
-        and abs_path.is_dir()
+        and skill_dir is not None
+        and skill_dir.is_dir()
     ):
-        profiles_dir = abs_path / "profiles"
+        profiles_dir = skill_dir / "profiles"
         if profiles_dir.is_dir():
-            profiles = sorted(
-                list(profiles_dir.glob("*.yaml")) + list(profiles_dir.glob("*.yml"))
-            )
+            profiles = sorted(list(profiles_dir.glob("*.yaml")) + list(profiles_dir.glob("*.yml")))
             for profile_path in profiles:
-                relative = profile_path.relative_to(abs_path).as_posix()
+                relative = profile_path.relative_to(skill_dir).as_posix()
                 for error in profile_errors(profile_path, name):
                     error["message"] = f"{relative}: {error['message']}"
                     errors.append(error)
 
 
+def _validate_edges(entries, errors):
+    statuses = {
+        entry.get("name"): entry.get("status")
+        for entry in entries
+        if isinstance(entry, dict) and isinstance(entry.get("name"), str)
+    }
+    graphs = {"deps": {}, "composed_of": {}}
+    for entry in entries:
+        if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
+            continue
+        name = entry["name"]
+        for field, unknown_code, inactive_code, cycle_code in (
+            ("deps", "DEP_UNKNOWN_REF", "DEP_NOT_ACTIVE", "DEP_CYCLE"),
+            ("composed_of", "COMPOSED_OF_UNKNOWN_REF", "COMPOSED_OF_NOT_ACTIVE", "COMPOSED_OF_CYCLE"),
+        ):
+            refs = entry.get(field)
+            if not isinstance(refs, list):
+                continue
+            graph = graphs[field].setdefault(name, [])
+            for ref in refs:
+                if not isinstance(ref, str) or ref not in statuses:
+                    errors.append(_err(unknown_code, name, f"{field} reference {ref!r} does not resolve to a skill"))
+                    continue
+                graph.append(ref)
+                if ref == name:
+                    errors.append(_err(cycle_code, name, f"{field} self-reference is not allowed"))
+                elif entry.get("status") == "active" and statuses.get(ref) != "active":
+                    errors.append(_err(inactive_code, name, f"active skill target {ref!r} is not active"))
+
+    for field, graph in graphs.items():
+        if not graph:
+            continue
+        code = "DEP_CYCLE" if field == "deps" else "COMPOSED_OF_CYCLE"
+        state = {}
+        stack = []
+        reported = set()
+
+        def visit(node):
+            state[node] = 1
+            stack.append(node)
+            for target in graph.get(node, []):
+                if state.get(target) == 1:
+                    start = stack.index(target)
+                    cycle = tuple(sorted(set(stack[start:] + [target])))
+                    if cycle not in reported:
+                        reported.add(cycle)
+                        errors.append(_err(code, cycle[0], f"{field} cycle detected: {' -> '.join(cycle)}"))
+                elif state.get(target) != 2:
+                    visit(target)
+            stack.pop()
+            state[node] = 2
+
+        for node in sorted(graph):
+            if state.get(node) is None:
+                visit(node)
+
+
+def _build_routes(skills, adapters):
+    routes = {
+        scenario: {"skills": [], "adapters": []}
+        for scenario in sorted(VALID_SCENARIOS)
+    }
+    for entry in skills:
+        if not isinstance(entry, dict):
+            continue
+        for scenario in entry.get("scenarios", []) if isinstance(entry.get("scenarios"), list) else []:
+            if scenario in routes:
+                routes[scenario]["skills"].append({"name": entry.get("name"), "status": entry.get("status")})
+    for entry in adapters:
+        if not isinstance(entry, dict):
+            continue
+        for scenario in entry.get("environments", []) if isinstance(entry.get("environments"), list) else []:
+            if scenario in routes:
+                routes[scenario]["adapters"].append(
+                    {
+                        "name": entry.get("name"),
+                        "status": entry.get("status"),
+                        "owner_skill": entry.get("owner_skill"),
+                    }
+                )
+    for route in routes.values():
+        route["skills"] = sorted(route["skills"], key=lambda item: (item.get("name") or "", item.get("status") or ""))
+        route["adapters"] = sorted(route["adapters"], key=lambda item: (item.get("name") or "", item.get("status") or ""))
+    return routes
+
+
+def _route_errors(routes):
+    errors = []
+    for scenario, route in routes.items():
+        if not route["skills"] and not route["adapters"]:
+            errors.append(_err("SCENARIO_UNROUTED", scenario, f"scenario has no registered skill or adapter: {scenario}"))
+    return errors
+
+
 def validate(manifest_path):
-    """Run the full check matrix; returns the report dict."""
+    """Run the full schema-v2 control-plane check and return its report."""
     manifest_path = Path(manifest_path)
     errors = []
     loaded = _load_manifest(manifest_path, errors)
     if loaded is None:
         return _report(False, str(manifest_path), 0, errors)
-    # Entry paths resolve against the repo root that contains this manifest
-    # (<root>/development/skill/manifest.yaml -> root).
     root = manifest_path.resolve().parents[2]
-    entries = loaded["skills"]
+    sources = loaded.get("sources", [])
+    entries = loaded.get("skills", [])
+    adapters = loaded.get("adapters", [])
+
+    source_ids = []
+    for index, source in enumerate(sources):
+        errors.extend(_source_errors(source, index, root))
+        if isinstance(source, dict) and isinstance(source.get("id"), str):
+            source_ids.append(source["id"])
+    for source_id in sorted({value for value in source_ids if source_ids.count(value) > 1}):
+        errors.append(_err("DUPLICATE_SOURCE_ID", source_id, "duplicate source id in manifest"))
+
     all_names = [
         entry.get("name")
         for entry in entries
@@ -590,14 +842,30 @@ def validate(manifest_path):
         if entry_name in seen:
             duplicates.add(entry_name)
         seen.add(entry_name)
-    skills_checked = 0
     for index, entry in enumerate(entries):
-        skills_checked += 1
-        _check_entry(entry, index, seen, root, errors)
+        _check_skill_entry_v2(entry, index, root, errors)
     for duplicate in sorted(duplicates):
-        errors.append(
-            _err("DUPLICATE_NAME", duplicate, "duplicate skill name in manifest")
-        )
+        errors.append(_err("DUPLICATE_NAME", duplicate, "duplicate skill name in manifest"))
+    _validate_edges(entries, errors)
+
+    skill_statuses = {
+        entry.get("name"): entry.get("status")
+        for entry in entries
+        if isinstance(entry, dict) and isinstance(entry.get("name"), str)
+    }
+    adapter_names = [
+        entry.get("name")
+        for entry in adapters
+        if isinstance(entry, dict) and isinstance(entry.get("name"), str)
+    ]
+    for duplicate in sorted({value for value in adapter_names if adapter_names.count(value) > 1}):
+        errors.append(_err("DUPLICATE_ADAPTER_NAME", duplicate, "duplicate adapter name in manifest"))
+    for index, adapter in enumerate(adapters):
+        errors.extend(_adapter_errors(adapter, index, root, skill_statuses))
+
+    routes = _build_routes(entries, adapters)
+    errors.extend(_route_errors(routes))
+
     scan_dir = manifest_path.parent
     if scan_dir.is_dir():
         registered = {entry.get("path") for entry in entries if isinstance(entry, dict)}
@@ -612,7 +880,15 @@ def validate(manifest_path):
                             f"directory under development/skill/ has no manifest entry: {relative}",
                         )
                     )
-    return _report(not errors, str(manifest_path), skills_checked, errors)
+    return _report(
+        not errors,
+        str(manifest_path),
+        len(entries),
+        errors,
+        sources_checked=len(sources),
+        adapters_checked=len(adapters),
+        routes=routes,
+    )
 
 
 def main(argv=None):

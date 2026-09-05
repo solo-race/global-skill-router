@@ -15,3 +15,6 @@ __pycache__/
 
 ## ChatGPT operations
 .chatgpt/
+
+## Temp cache
+.tmp/

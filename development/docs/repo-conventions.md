@@ -6,7 +6,7 @@ Derived from three architecture reviews archived under [`architecture-ref/`](arc
 
 ## Project Overview
 
-Content repository building a global SKILL system ("Global Skill 结构构建") for the local Codex development environment. Currently at scaffolding stage: a mature 14-skill reference library lives under `references/SpineCodex-skills/`, plus two self-built skills (`references/customer-research-skills/recycling-company-investigation/`, methodology-type; `references/access-vba-dev/`, engineering-type). Per `README.md` (Chinese), the mandated workflow is to analyze those structures and rebuild the architecture under `development/skill/`. Target dev scenarios: Windows-native work (SQL databases, Access frontends, Access/Excel VBA), Android apps on Windows, and WSL Python filtering projects.
+Content repository building a global SKILL control platform ("Global Skill 结构构建") for the local Codex development environment. The platform now has a manifest/validator control plane plus two active framework Skills (`development/skill/research-investigation/` and `development/skill/runtime-ops/`), with read-only design references under `references/` and planned host adapters registered for future scenarios. Per `README.md` (Chinese), the mandated workflow is to analyze those structures and keep the deployed architecture under `development/skill/`. Target dev scenarios: Windows-native work (SQL databases, Access frontends, Access/Excel VBA), Android apps on Windows, and WSL Python filtering projects.
 
 There is no application source, build system, or deployable runtime here — deliverables are Markdown skill modules plus Python helper scripts (prefer stdlib-only; third-party imports only where declared, see **Python scripts** below).
 
@@ -38,7 +38,7 @@ For heavier skills, extend toward the five-layer stack reviewed in `architecture
 - `references/customer-research-skills/recycling-company-investigation/` — self-built methodology-type skill (three-layer lifecycle bucketing).
 - `references/access-vba-dev/` — self-built engineering-type skill (five-layer stack + repo meta layer).
 - `development/skill/` — platform skill library: `manifest.yaml` registry plus rebuilt skills (staging target for the rebuild).
-- `development/docs/` — project documentation (`architecture-ref/` module reviews, this file, and [`plans/`](plans/) execution roadmap with `000-platform-skeleton.md` master plan).
+- `development/docs/` — project documentation (`architecture-ref/` module reviews, this file, [`plans/`](plans/) execution roadmap, and the derived [`scenario-routing.md`](scenario-routing.md)).
 - `.github/`, `.codex/` — exist but empty; purpose not yet defined.
 
 ## Code Conventions & Common Patterns
@@ -73,6 +73,29 @@ For heavier skills, extend toward the five-layer stack reviewed in `architecture
 - Python 3 (scripts assume ≥3.8 APIs; no version pin file exists). `gh` CLI required by the two scripted reference skills; declared third-party dependency: PyYAML (YAML parsing for tools/validate_skills.py).
 - No git history/config, no package manager, no formatter/linter config — do not introduce tooling speculatively; keep the repo minimal.
 - Command paths inside reference SKILL.md files address the upstream Codex checkout (`.codex/skills/…`); substitute `references/SpineCodex-skills/` locally. Some referenced validation targets do not exist in this repo — they belong upstream.
+
+## Deployment and Runtime Mapping
+
+- **Source of truth:** `development/skill/<name>/` is the source root for a managed Skill. Only
+  entries whose `skills[].status` is `active` in `development/skill/manifest.yaml` are eligible
+  for deployment.
+- **Payload boundary:** deploy the complete Skill root. Existing `agents/`, `references/`,
+  `profiles/`, `adapters/`, and `scripts/` directories travel with that root when present;
+  `development/tools/`, plans, and read-only source references do not.
+- **Owner rule:** adapters and profiles are owner-contained extensions. An adapter is deployed
+  with its owner Skill and is not installed as a separate top-level Skill.
+- **Dependency rule:** before deploying an active Skill, its `deps[]` and active
+  `composed_of[]` targets must be available in the target environment as represented by the
+  manifest.
+- **Path rule:** Skill files use paths relative to their own Skill root. The eventual target
+  may be a user-level or project-level skill root; the Skill must not assume `.codex/skills/`
+  or `.agents/skills/`.
+- **Self-containment:** an active Skill must retain all runtime decision-making material inside
+  its own root. Optional `sources[]` references may be absent after deployment.
+- **Planned exclusion:** planned Skills and adapters are registration records, not runtime
+  capabilities, even if a development directory happens to exist.
+- **P3 limit:** this convention does not define a copy, symlink, junction, atomic replacement,
+  or rollback implementation. A future deployment manager needs its own operation contract.
 
 ## Testing & QA
 

@@ -16,7 +16,7 @@ validate_skills = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(validate_skills)
 
 
-def _entry(name, path, status="external", **overrides):
+def _entry(name, path, status="planned", **overrides):
     entry = {
         "name": name,
         "path": path,
@@ -24,8 +24,22 @@ def _entry(name, path, status="external", **overrides):
         "scenarios": [],
         "deps": [],
         "composed_of": [],
+        "entrypoint": False,
         "version": "1.0.0",
         "description": "placeholder description",
+    }
+    entry.update(overrides)
+    return entry
+
+
+def _source(source_id, path, required=False, **overrides):
+    entry = {
+        "id": source_id,
+        "path": path,
+        "kind": "local-reference",
+        "required": required,
+        "version": "1.0.0",
+        "description": "placeholder source",
     }
     entry.update(overrides)
     return entry
@@ -43,24 +57,50 @@ def _write_skill_md(skill_dir, name=None, description="Use when testing skills."
         )
 
 
-def _build_tree(tmp_path, entries, probe_dirs=(), create_external=True):
+def _build_tree(tmp_path, entries, probe_dirs=(), create_external=True, sources=None):
     skill_dir = tmp_path / "development" / "skill"
     skill_dir.mkdir(parents=True, exist_ok=True)
     for probe in probe_dirs:
         (skill_dir / probe).mkdir(parents=True, exist_ok=True)
+    skill_entries = []
+    source_entries = list(sources or [])
     for entry in entries:
-        if create_external and entry["status"] == "external":
-            (tmp_path / entry["path"]).mkdir(parents=True, exist_ok=True)
+        if entry.get("status") == "external":
+            source_entries.append(
+                _source(
+                    entry["name"],
+                    entry["path"],
+                    required=entry.get("required", False),
+                )
+            )
+            if create_external:
+                (tmp_path / entry["path"]).mkdir(parents=True, exist_ok=True)
+        else:
+            skill_entries.append(entry)
     manifest = skill_dir / "manifest.yaml"
     manifest.write_text(
-        yaml.safe_dump({"schema_version": 1, "skills": entries}, sort_keys=False),
+        yaml.safe_dump(
+            {
+                "schema_version": 2,
+                "sources": source_entries,
+                "skills": skill_entries,
+                "adapters": [],
+            },
+            sort_keys=False,
+        ),
         encoding="utf-8",
     )
     return manifest
 
 
-def _run(tmp_path, entries, probe_dirs=(), create_external=True):
-    manifest = _build_tree(tmp_path, entries, probe_dirs, create_external)
+def _run(tmp_path, entries, probe_dirs=(), create_external=True, sources=None):
+    manifest = _build_tree(
+        tmp_path,
+        entries,
+        probe_dirs,
+        create_external,
+        sources=sources,
+    )
     return validate_skills.validate(manifest)
 
 
@@ -70,7 +110,6 @@ def _codes(report):
 
 def _green_entries():
     return [
-        _entry("spine-lib", "references/spine-lib", "external"),
         _entry(
             "research-investigation",
             "development/skill/research-investigation",
@@ -81,7 +120,7 @@ def _green_entries():
             "runtime-ops",
             "development/skill/runtime-ops",
             "active",
-            scenarios=["win-access-vba"],
+            scenarios=["win-access-vba", "win-android", "wsl-python"],
             version="0.1.0",
         ),
     ]
@@ -96,7 +135,7 @@ def test_green_tree_passes(tmp_path):
     report = _green_tree(tmp_path)
     assert report["ok"] is True
     assert report["errors"] == []
-    assert report["skills_checked"] == 3
+    assert report["skills_checked"] == 2
 
 
 def test_planned_forward_registration_without_dir_ok(tmp_path):
@@ -106,6 +145,7 @@ def test_planned_forward_registration_without_dir_ok(tmp_path):
             "future-skill",
             "development/skill/future-skill",
             "planned",
+            scenarios=["win-access-vba", "win-android", "wsl-python"],
             version="0.1.0",
         ),
     ]
@@ -115,7 +155,14 @@ def test_planned_forward_registration_without_dir_ok(tmp_path):
 
 
 def test_planned_with_skill_md_checked(tmp_path):
-    entries = [_entry("early-skill", "development/skill/early-skill", "planned")]
+    entries = [
+        _entry(
+            "early-skill",
+            "development/skill/early-skill",
+            "planned",
+            scenarios=["win-access-vba", "win-android", "wsl-python"],
+        )
+    ]
     _write_skill_md(tmp_path / "development" / "skill" / "early-skill", name="wrong-name")
     report = _run(tmp_path, entries)
     assert _codes(report) == ["NAME_MISMATCH"]
@@ -143,9 +190,13 @@ def test_active_empty_scenarios_rejected(tmp_path):
 
 
 def test_external_missing_path_detected(tmp_path):
-    entries = [_entry("ghost-lib", "references/ghost-lib", "external")]
-    report = _run(tmp_path, entries, create_external=False)
-    assert "EXTERNAL_PATH_MISSING" in _codes(report)
+    report = _run(
+        tmp_path,
+        [],
+        create_external=False,
+        sources=[_source("ghost-lib", "references/ghost-lib", required=True)],
+    )
+    assert "SOURCE_PATH_MISSING" in _codes(report)
 
 
 def test_name_mismatch_detected(tmp_path):
@@ -214,16 +265,33 @@ def test_unregistered_dir_detected(tmp_path):
 
 def test_duplicate_names_rejected(tmp_path):
     entries = [
-        _entry("dupe", "references/lib-a", "external"),
-        _entry("dupe", "references/lib-b", "external"),
+        _entry("dupe", "development/skill/lib-a", "planned"),
+        _entry("dupe", "development/skill/lib-b", "planned"),
     ]
     report = _run(tmp_path, entries)
     assert "DUPLICATE_NAME" in _codes(report)
 
 
+def test_duplicate_source_ids_rejected(tmp_path):
+    report = _run(
+        tmp_path,
+        [],
+        sources=[
+            _source("dupe", "references/lib-a"),
+            _source("dupe", "references/lib-b"),
+        ],
+    )
+    assert "DUPLICATE_SOURCE_ID" in _codes(report)
+
+
 def test_unknown_composed_of_ref_rejected(tmp_path):
     entries = [
-        _entry("spine-lib", "references/spine-lib", "external", composed_of=["ghost"])
+        _entry(
+            "worker",
+            "development/skill/worker",
+            scenarios=["win-access-vba", "win-android", "wsl-python"],
+            composed_of=["ghost"],
+        )
     ]
     report = _run(tmp_path, entries)
     assert "COMPOSED_OF_UNKNOWN_REF" in _codes(report)
@@ -231,7 +299,7 @@ def test_unknown_composed_of_ref_rejected(tmp_path):
 
 def test_invalid_scenario_value_rejected(tmp_path):
     entries = [
-        _entry("spine-lib", "references/spine-lib", "external", scenarios=["wsl-bash"])
+        _entry("worker", "development/skill/worker", scenarios=["wsl-bash"])
     ]
     report = _run(tmp_path, entries)
     assert "INVALID_SCENARIO" in _codes(report)
@@ -245,15 +313,28 @@ def test_report_shape_and_exit_code(tmp_path, monkeypatch, capsys):
     captured = capsys.readouterr()
     report = json.loads(captured.out)
     assert exit_code == 0
-    assert set(report) == {"ok", "manifest", "skills_checked", "errors"}
+    assert set(report) == {
+        "ok",
+        "manifest",
+        "skills_checked",
+        "sources_checked",
+        "adapters_checked",
+        "routes",
+        "errors",
+    }
     assert report["ok"] is True
-    assert report["skills_checked"] == 3
+    assert report["skills_checked"] == 2
     assert report["errors"] == []
 
-    broken = {"schema_version": 1, "skills": [
-        _entry("dupe", "references/lib-a", "external"),
-        _entry("dupe", "references/lib-b", "external"),
-    ]}
+    broken = {
+        "schema_version": 2,
+        "sources": [],
+        "skills": [
+            _entry("dupe", "development/skill/lib-a"),
+            _entry("dupe", "development/skill/lib-b"),
+        ],
+        "adapters": [],
+    }
     manifest.write_text(yaml.safe_dump(broken, sort_keys=False), encoding="utf-8")
     exit_code = validate_skills.main()
     captured = capsys.readouterr()
@@ -467,12 +548,11 @@ def _profile_manifest_tree(tmp_path, payload, status="active"):
         yaml.safe_dump(payload, sort_keys=False), encoding="utf-8"
     )
     entries = [
-        _entry("spine-lib", "references/spine-lib", "external"),
         _entry(
             "research-investigation",
             "development/skill/research-investigation",
             status,
-            scenarios=["wsl-python"] if status == "active" else [],
+            scenarios=["win-access-vba", "win-android", "wsl-python"],
         ),
     ]
     return _run(tmp_path, entries)
@@ -505,9 +585,18 @@ def test_external_entry_profiles_not_gated(tmp_path):
     (external_dir / "profiles" / "alpha-domain.yaml").write_text(
         yaml.safe_dump(payload, sort_keys=False), encoding="utf-8"
     )
+    _write_skill_md(tmp_path / "development" / "skill" / "base", name="base")
     report = _run(
         tmp_path,
-        [_entry("research-investigation", "references/research-investigation", "external")],
+        [
+            _entry("research-investigation", "references/research-investigation", "external"),
+            _entry(
+                "base",
+                "development/skill/base",
+                "active",
+                scenarios=["win-access-vba", "win-android", "wsl-python"],
+            ),
+        ],
     )
     assert report["ok"] is True
 
@@ -527,7 +616,7 @@ def test_non_research_skill_with_profiles_not_gated(tmp_path):
             "other-active",
             "development/skill/other-active",
             "active",
-            scenarios=["wsl-python"],
+            scenarios=["win-access-vba", "win-android", "wsl-python"],
         ),
     ]
     report = _run(tmp_path, entries)

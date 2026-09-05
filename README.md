@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-项目刚刚开始，还未确定架构，但已有一成熟案例列入`references`，故而在开始后，应当先对`references`中列出的SKILL体系进行分析，拆解其结构，然后依照其成熟架构，在`development/skill`文件夹中对其SKILL架构进行重建。
+项目已形成可验证的技能控制平台：`development/skill/manifest.yaml` 注册正式 Skill、owner-contained adapters 与只读设计来源，`development/tools/validate_skills.py` 负责生命周期、契约和场景路由门禁。当前有两个 active framework Skill，宿主扩展位按场景登记为 active 或 planned；`references` 仍是只读设计输入，不是部署依赖。
 
 ## 开发项目背景
 

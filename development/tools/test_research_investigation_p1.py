@@ -221,21 +221,24 @@ def test_malformed_profile_cannot_pass_activation_gate(tmp_path):
     manifest = tmp_path / "development" / "skill" / "manifest.yaml"
     manifest.write_text(
         yaml.safe_dump(
-            {
-                "schema_version": 1,
-                "skills": [
-                    {
-                        "name": "research-investigation",
-                        "path": "development/skill/research-investigation",
-                        "status": "active",
-                        "scenarios": ["wsl-python"],
-                        "deps": [],
-                        "composed_of": [],
-                        "version": "0.1.0",
-                        "description": "Probe skill.",
-                    }
-                ],
-            },
+                {
+                    "schema_version": 2,
+                    "sources": [],
+                    "skills": [
+                        {
+                            "name": "research-investigation",
+                            "path": "development/skill/research-investigation",
+                            "status": "active",
+                            "scenarios": ["win-access-vba", "win-android", "wsl-python"],
+                            "deps": [],
+                            "composed_of": [],
+                            "entrypoint": False,
+                            "version": "0.1.0",
+                            "description": "Probe skill.",
+                        }
+                    ],
+                    "adapters": [],
+                },
             sort_keys=False,
         ),
         encoding="utf-8",

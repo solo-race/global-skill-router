@@ -1,0 +1,4 @@
+interface:
+  display_name: Runtime Operations
+  short_description: Operate declared host tools with capability, verification, and recovery contracts.
+  default_prompt: Load $runtime-ops, select the matching adapter, and follow its capability, verification, and recovery contract.

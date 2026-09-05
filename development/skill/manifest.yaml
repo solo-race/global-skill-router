@@ -1,42 +1,71 @@
-schema_version: 1
-skills:
-  - name: SpineCodex-skills
+schema_version: 2
+
+sources:
+  - id: spinecodex-skills-upstream
     path: references/SpineCodex-skills
-    status: external
-    scenarios: [win-access-vba, win-android, wsl-python]
-    deps: []
-    composed_of: []
+    kind: upstream-snapshot
+    required: false
     version: "2026-08-25"
-    description: Upstream 14-skill control architecture library; read-only analysis input.
-  - name: recycling-company-investigation
+    description: Read-only architecture reference from the upstream Codex skill set.
+  - id: recycling-company-investigation-reference
     path: references/customer-research-skills/recycling-company-investigation
-    status: external
-    scenarios: [wsl-python]
-    deps: []
-    composed_of: []
+    kind: local-reference
+    required: false
     version: "2026-08-25"
-    description: Self-built methodology-type research screening skill; read-only analysis input.
-  - name: access-vba-dev
+    description: Read-only source skill used to derive research-investigation.
+  - id: access-vba-dev-reference
     path: references/access-vba-dev
-    status: external
-    scenarios: [win-access-vba]
-    deps: []
-    composed_of: []
+    kind: local-reference
+    required: false
     version: "2026-08-25"
-    description: Self-built engineering-type VBA runtime-operations skill; read-only analysis input.
+    description: Read-only source skill used to derive runtime-ops and vba-office.
+
+skills:
   - name: research-investigation
     path: development/skill/research-investigation
     status: active
     scenarios: [wsl-python]
     deps: []
     composed_of: []
+    entrypoint: true
     version: "0.1.0"
-    description: Domain-neutral research investigation framework (built in P1).
+    description: Domain-neutral research investigation framework.
   - name: runtime-ops
     path: development/skill/runtime-ops
     status: active
     scenarios: [win-access-vba]
     deps: []
     composed_of: []
+    entrypoint: true
     version: "0.1.0"
-    description: Universal runtime operations framework (built in P2).
+    description: Host-neutral runtime operations framework.
+
+adapters:
+  - name: vba-office
+    path: development/skill/runtime-ops/adapters/vba-office.md
+    status: active
+    owner_skill: runtime-ops
+    environments: [win-access-vba]
+    version: "0.1.0"
+    description: Microsoft Office VBA runtime adapter.
+  - name: sql-server
+    path: development/skill/runtime-ops/adapters/sql-server.md
+    status: planned
+    owner_skill: runtime-ops
+    environments: [win-access-vba]
+    version: "0.1.0"
+    description: Planned SQL Server runtime adapter.
+  - name: android-gradle
+    path: development/skill/runtime-ops/adapters/android-gradle.md
+    status: planned
+    owner_skill: runtime-ops
+    environments: [win-android]
+    version: "0.1.0"
+    description: Planned Android and Gradle runtime adapter.
+  - name: wsl-python
+    path: development/skill/runtime-ops/adapters/wsl-python.md
+    status: planned
+    owner_skill: runtime-ops
+    environments: [wsl-python]
+    version: "0.1.0"
+    description: Planned WSL Python runtime adapter.

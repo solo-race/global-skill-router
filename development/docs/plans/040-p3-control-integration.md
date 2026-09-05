@@ -1,6 +1,6 @@
 # P3 控制集成 — 精细实施计划
 
-Status: draft
+Status: done
 Date: 2026-09-05
 Depends-on: 000-platform-skeleton, 010-p0-foundation, 020-p1-research-investigation, 030-p2-runtime-ops
 
