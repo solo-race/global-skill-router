@@ -8,7 +8,7 @@ Depends-on: none
 
 ## §1 目标与定位
 
-本项目的目的地不是重建示例技能，而是一个**技能控制平台**（skill control platform）：控制一个**可持续增长的技能集合**。三个参考库为它供给架构思想——SpineCodex 的成熟控制体系化为**生长机制**（生长单元、组合、负载控制、确定性下沉、增长门禁），recycling-company-investigation 化为**证据调查框架**，access-vba-dev 化为**运行时操作框架**；在此之上叠加控制层（注册表、校验、部署约定），使新领域以**profile / adapter 接入**而非重写技能。
+本项目的目的地不是重建示例技能，而是一个**技能控制平台**（skill control platform）：控制一个**可持续增长且不会随技能数量线性膨胀 Codex 初始技能上下文的技能集合**。三个参考库为它供给架构思想——SpineCodex 的成熟控制体系化为**生长机制**（生长单元、组合、负载控制、确定性下沉、增长门禁），recycling-company-investigation 化为**证据调查框架**，access-vba-dev 化为**运行时操作框架**；在此之上叠加控制层（注册表、校验、选择性发现、受管部署），使新领域以 **profile / adapter / module 接入**而非重写技能，并使 Codex 常态只看到一个轻量路由入口，具体 framework/worker 在命中后才按需加载。
 
 边界约束：三个参考库本体不重建、不移动，保持 `references/` 只读；平台全部产出落在 `development/` 之下。本文件是骨架计划（master plan）；每个阶段执行前另立精细计划（见 §5），精细计划经用户批准后才可执行。
 
@@ -18,27 +18,34 @@ Depends-on: none
 
 ```
 development/
-├── skill/                          # 平台技能库（重建目标）
-│   ├── manifest.yaml               # 技能注册表（P0）
-│   ├── research-investigation/     # 证据调查框架（P1）
-│   │   ├── SKILL.md                # 调查 Core：Contract + 通用生命周期 + 加载纪律
-│   │   ├── references/             # evidence-rules / output-schema / evidence-taxonomy / profile-contract
-│   │   └── profiles/               # <domain>.yaml：领域问题模型 + 可选项目绑定
-│   └── runtime-ops/                # 运行时操作框架（P2）
-│       ├── SKILL.md                # capability / verification / recoverability Core
-│       ├── references/             # contract-template / verification-ladder / evidence-types
-│       └── adapters/               # <host>.md：宿主/工具合同实例
+├── skill/                          # 平台技能源码库
+│   ├── manifest.yaml               # 注册表 / 生命周期 / 部署角色
+│   ├── global-skill-router/        # 唯一平台级 Codex 可见入口（P4）
+│   │   ├── SKILL.md                # 薄路由合同：选场景 → 选模块 → 按需读取
+│   │   └── agents/openai.yaml      # 顶层 discovery metadata
+│   ├── research-investigation/     # 证据调查框架（P1；P4 部署为 router library module）
+│   │   ├── SKILL.md
+│   │   ├── references/
+│   │   └── profiles/
+│   └── runtime-ops/                # 运行时操作框架（P2；P4 部署为 router library module）
+│       ├── SKILL.md
+│       ├── references/
+│       └── adapters/
 ├── tools/
-│   └── validate_skills.py          # 注册表与 frontmatter 校验（P0）
+│   ├── validate_skills.py          # 注册表、contract、route/deployment-role 校验
+│   ├── deploy_skills.py            # P4：构建/更新/验证 routed deployment
+│   └── run_tests.py                # repo-local pytest runner
 └── docs/
     ├── plans/                      # 计划目录（本文件；NNN-<slug>.md）
     ├── architecture-ref/           # 架构依据（已有，只读）
     └── repo-conventions.md         # 展开约定（已有）
 ```
 
-**Manifest 模式草图** —— 注册表每条目字段：`name / path / status(active|planned|external) / scenarios[win-access-vba|win-android|wsl-python] / deps[] / description`，并携带 `version` 与 `composed_of[]` 字段。`external` 条目覆盖三个参考库（只读登记）。模式在 P0 精细计划中定稿，此处仅为契约轮廓。manifest 位于 `development/skill/manifest.yaml`，描述它所在的技能库本身。
+P4 的运行时安装形状与源码形状不同：`development/skill/` 继续保存完整、可独立测试的标准 Skill 源码；部署器只把 `global-skill-router` 暴露为 Codex 顶层 Skill，并把命中的 framework/worker 源码作为其私有 `library/` payload。嵌套 module 不依赖 Codex 将其再次注册为顶层 Skill，而由 router 按相对路径读取其 `SKILL.md`。
 
-**新技能接入流程**（生长回路，P0 起生效）：draft `development/skill/<name>/` 按模块解剖实例化 → 在 `manifest.yaml` 登记为 `status: planned` → `validate_skills.py` 通过（frontmatter 存在、name==dirname、description 含 "Use when"、与 manifest 一致）→ 补全 scenario 映射 → 置 `status: active`。复合技能额外登记 `composed_of[]` 组合边。注册表 + 校验状态 = 平台对技能集合的完整视图；这是 SpineCodex 所缺、由平台补齐的增长门禁。
+**Manifest 当前/目标模式** —— P3 已将注册表升级为 schema v2，顶层分离 `sources / skills / adapters`；只读 reference 不再占 Skill 身份，Skill lifecycle 为 `planned|active`，adapter 归 owner Skill。P4 在此基础上引入负载承重的 deployment-role contract，并将 manifest 版本演进为 v3：每个正式 Skill 额外声明 `deployment_role: router|module`。平台必须恰有一个 active router；active module 不直接安装到 Codex 顶层 discovery root，而由 router 的组合边和部署索引覆盖。`entrypoint` 继续表示逻辑上可被路由选择并具有 agent metadata，`deployment_role` 单独决定物理 catalog 暴露，二者不得混用。
+
+**新技能接入流程**（生长回路）：draft `development/skill/<name>/` 按模块解剖实例化 → 在 manifest 登记 `planned` + scenario + deployment role → validator 通过 → 补全逻辑入口/组合边 → 置 `active` → deploy manager 构建 routed payload → 验证只有 router 进入平台管理的顶层 Codex catalog、module 位于 router 私有 library。复合技能额外登记 `composed_of[]`；新增 module 不得通过“直接复制到 `~/.codex/skills/<name>`”绕过选择性发现层。
 
 ## §3 平台化与泛化映射
 
@@ -81,6 +88,19 @@ development/
 | 首个适配 | vba-office 实例承载 Diagnose/Review/Modify/Test、Static→Compile→Runtime、vba-doctor/vba-lint、Office fixture 与文件备份策略；运行时语义必须自足，参考库只作 provenance | adapters/vba-office.md |
 | 预留适配 | sql-server / android-gradle / wsl-python（manifest 标 planned，不实现） | §4 P3 |
 
+### §3.4 选择性发现与受管部署层（P4）
+
+| 问题 | 平台机制 | 落点 |
+|---|---|---|
+| Codex 会把顶层 Skill catalog 的 name/description 暴露给模型并受 context budget 约束 | 单一平台入口：只把 `global-skill-router` 安装为本平台顶层 Skill | `development/skill/global-skill-router/` + deploy manager |
+| 技能数量增长会使直接安装模式的初始 discovery 面扩大 | 物理 catalog 与逻辑 registry 分离：framework/worker 保持标准 Skill 源码，但部署为 router 私有 module | manifest v3 `deployment_role` |
+| Router 若扫描全部 module，同样会把增长成本转移到每次任务 | 分层路由索引：先读固定小型 scenario index，只在命中后读对应 route shard，再读取所选 module `SKILL.md` | deploy-generated routing index |
+| Codex 没有要求嵌套 module 必须再次注册成原生 Skill | Router 通过相对路径加载 module 的 `SKILL.md`；module 仍复用原有 profile/adapter progressive disclosure | router contract + private `library/` |
+| 手工复制无法可靠更新、验证或回滚 | repo-owned deploy manager：validate → build staging payload → diff/plan → atomic-ish replace with recovery → verify/drift report | `development/tools/deploy_skills.py` |
+| 新增大量 module 后是否真的不增加顶层技能负载缺少证据 | 结构回归 + Alpha 黑盒测试：增加 synthetic modules 后平台管理的顶层 Skill 数仍为 1，未命中 module 不被读取 | P4 tests + live smoke |
+
+P4 的关键区分是：**逻辑 Skill 数量可以增长，Codex 顶层可见 Skill 数量不随之增长**。这不是把所有内容塞进一个巨型 SKILL.md；router 必须保持薄，路由元数据按场景分片，module 正文和深层 references 仍在命中后才加载。
+
 ## §4 阶段划分
 
 ### P0 平台地基
@@ -112,6 +132,14 @@ development/
 - **产出**：manifest 覆盖全部条目含 planned adapters；scenario 路由表（3 场景 × 技能）；编排者技能的组合边登记；生命周期门禁（`planned → active` 仅在校验器绿后）；部署约定章节（`development/skill/<name>/` 如何映射进运行环境且路径自引用保持）；AGENTS.md Documentation Map 补 plans/ 行（若此前未加）。
 - **验收标准**：校验器对完整注册表绿；路由表完备；用一个一次性技能端到端演示增长回路（register → validate → route → 验证后移除）。
 - **依赖**：P1 + P2。
+
+### P4 选择性发现与受管部署
+
+- **目标**：把 P3 的逻辑控制面转成可实际安装的低负载运行时拓扑：Codex 常态只发现一个平台 router；active framework/worker 作为 router 私有 module 按需加载；更新由 repo-owned deploy manager 完成。
+- **产出**：`global-skill-router` 薄入口；manifest v3 deployment-role contract；分层 route index 生成规则；`deploy_skills.py` 的 dry-run/apply/verify/rollback-or-auto-recovery；routed payload 布局与 deployment state/hash；结构与黑盒 Alpha 测试。
+- **验收标准**：平台管理的用户级 Codex 顶层目录只有 router；`research-investigation`、`runtime-ops` 可由 router 正确按需选择但不作为顶层 Skill 暴露；未命中 module 不读取；增加大量 synthetic module 不增加平台顶层 Skill 数，固定入口正文不随 module 数膨胀；重复部署可无损更新并能检测 drift/失败后恢复；旧 `vba-skill` 与项目级 recycling skill 在 Alpha 期间不被删除或覆盖。
+- **依赖**：P3。
+- **精细计划**：`050-p4-selective-discovery-deployment.md`。
 
 每阶段执行前先立各自的精细计划文件（见 §5）。
 
