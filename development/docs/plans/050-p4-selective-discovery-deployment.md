@@ -1,6 +1,6 @@
 # P4 选择性发现与受管部署 — 精细实施计划
 
-Status: draft
+Status: executing
 Date: 2026-09-05
 Depends-on: 000-platform-skeleton, 040-p3-control-integration
 

@@ -219,23 +219,52 @@ def test_malformed_profile_cannot_pass_activation_gate(tmp_path):
         encoding="utf-8",
     )
     manifest = tmp_path / "development" / "skill" / "manifest.yaml"
+    router_dir = tmp_path / "development" / "skill" / "global-skill-router"
+    router_dir.mkdir(parents=True, exist_ok=True)
+    (router_dir / "SKILL.md").write_text(
+        "---\nname: global-skill-router\n"
+        "description: Probe router. Use when selecting a module.\n"
+        "---\n\nRouter body.\n",
+        encoding="utf-8",
+    )
+    (router_dir / "agents").mkdir(parents=True, exist_ok=True)
+    (router_dir / "agents" / "openai.yaml").write_text(
+        "interface:\n"
+        "  display_name: Router\n"
+        "  short_description: Probe router\n"
+        "  default_prompt: Load $global-skill-router.\n",
+        encoding="utf-8",
+    )
     manifest.write_text(
         yaml.safe_dump(
                 {
-                    "schema_version": 2,
+                    "schema_version": 3,
                     "sources": [],
                     "skills": [
                         {
                             "name": "research-investigation",
                             "path": "development/skill/research-investigation",
                             "status": "active",
+                            "deployment_role": "module",
                             "scenarios": ["win-access-vba", "win-android", "wsl-python"],
                             "deps": [],
                             "composed_of": [],
                             "entrypoint": False,
                             "version": "0.1.0",
                             "description": "Probe skill.",
-                        }
+                        },
+                        {
+                            "name": "global-skill-router",
+                            "path": "development/skill/global-skill-router",
+                            "status": "active",
+                            "deployment_role": "router",
+                            "scenarios": ["win-access-vba", "win-android", "wsl-python"],
+                            "deps": [],
+                            "composed_of": ["research-investigation"],
+                            "entrypoint": True,
+                            "version": "0.1.0",
+                            "description": "Probe router.",
+                        },
                     ],
                     "adapters": [],
                 },

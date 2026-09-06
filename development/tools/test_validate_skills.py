@@ -25,6 +25,7 @@ def _entry(name, path, status="planned", **overrides):
         "deps": [],
         "composed_of": [],
         "entrypoint": False,
+        "deployment_role": "module",
         "version": "1.0.0",
         "description": "placeholder description",
     }
@@ -77,11 +78,47 @@ def _build_tree(tmp_path, entries, probe_dirs=(), create_external=True, sources=
                 (tmp_path / entry["path"]).mkdir(parents=True, exist_ok=True)
         else:
             skill_entries.append(entry)
+    if not any(
+        isinstance(entry, dict) and entry.get("name") == "global-skill-router"
+        for entry in skill_entries
+    ):
+        active_modules = [
+            entry["name"]
+            for entry in skill_entries
+            if entry.get("status") == "active" and entry.get("name")
+        ]
+        router = _entry(
+            "global-skill-router",
+            "development/skill/global-skill-router",
+            "active",
+            deployment_role="router",
+            scenarios=["win-access-vba", "win-android", "wsl-python"],
+            composed_of=active_modules,
+            entrypoint=True,
+        )
+        skill_entries.append(router)
+        router_dir = tmp_path / router["path"]
+        _write_skill_md(router_dir, name="global-skill-router")
+        metadata_dir = router_dir / "agents"
+        metadata_dir.mkdir(parents=True, exist_ok=True)
+        (metadata_dir / "openai.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "interface": {
+                        "display_name": "Global Skill Router",
+                        "short_description": "Route managed modules.",
+                        "default_prompt": "Load $global-skill-router.",
+                    }
+                },
+                sort_keys=False,
+            ),
+            encoding="utf-8",
+        )
     manifest = skill_dir / "manifest.yaml"
     manifest.write_text(
         yaml.safe_dump(
             {
-                "schema_version": 2,
+                "schema_version": 3,
                 "sources": source_entries,
                 "skills": skill_entries,
                 "adapters": [],
@@ -135,7 +172,7 @@ def test_green_tree_passes(tmp_path):
     report = _green_tree(tmp_path)
     assert report["ok"] is True
     assert report["errors"] == []
-    assert report["skills_checked"] == 2
+    assert report["skills_checked"] == 3
 
 
 def test_planned_forward_registration_without_dir_ok(tmp_path):
@@ -305,6 +342,82 @@ def test_invalid_scenario_value_rejected(tmp_path):
     assert "INVALID_SCENARIO" in _codes(report)
 
 
+def test_schema_v3_required(tmp_path):
+    manifest = _build_tree(tmp_path, _green_entries())
+    payload = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    payload["schema_version"] = 2
+    manifest.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    assert "SCHEMA_VERSION_UNSUPPORTED" in _codes(validate_skills.validate(manifest))
+
+
+def test_deployment_role_gate(tmp_path):
+    entries = [_entry("runtime-ops", "development/skill/runtime-ops", "planned", deployment_role="bad")]
+    report = _run(tmp_path, entries)
+    assert "DEPLOYMENT_ROLE_INVALID" in _codes(report)
+
+
+def test_router_cardinality_gate(tmp_path):
+    manifest = _build_tree(tmp_path, _green_entries())
+    payload = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    payload["skills"] = [entry for entry in payload["skills"] if entry["name"] != "global-skill-router"]
+    manifest.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    assert "ROUTER_CARDINALITY_INVALID" in _codes(validate_skills.validate(manifest))
+
+
+def test_router_module_coverage_gate(tmp_path):
+    entries = [
+        _entry(
+            "module-a",
+            "development/skill/module-a",
+            "active",
+            scenarios=["wsl-python"],
+            entrypoint=True,
+        ),
+        _entry(
+            "global-skill-router",
+            "development/skill/global-skill-router",
+            "active",
+            deployment_role="router",
+            scenarios=["wsl-python"],
+            entrypoint=True,
+            composed_of=[],
+        ),
+    ]
+    _write_skill_md(tmp_path / "development" / "skill" / "module-a", name="module-a")
+    router_dir = tmp_path / "development" / "skill" / "global-skill-router"
+    _write_skill_md(router_dir, name="global-skill-router")
+    (router_dir / "agents").mkdir(parents=True, exist_ok=True)
+    (router_dir / "agents" / "openai.yaml").write_text(
+        "interface:\n  display_name: Router\n  short_description: Route modules.\n  default_prompt: Load $global-skill-router.\n",
+        encoding="utf-8",
+    )
+    report = _run(tmp_path, entries)
+    assert "ROUTER_MODULE_UNCOVERED" in _codes(report)
+
+
+def test_non_entrypoint_module_reachability_gate(tmp_path):
+    manifest = _build_tree(
+        tmp_path,
+        [_entry("module-a", "development/skill/module-a", "active", scenarios=["wsl-python"])],
+    )
+    payload = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    for entry in payload["skills"]:
+        if entry["name"] == "global-skill-router":
+            entry["composed_of"] = []
+    manifest.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    assert "MODULE_UNREACHABLE" in _codes(validate_skills.validate(manifest))
+
+
+def test_skill_path_containment_gate(tmp_path):
+    manifest = _build_tree(tmp_path, _green_entries())
+    payload = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    for entry in payload["skills"]:
+        if entry["name"] == "runtime-ops":
+            entry["path"] = "development/skill/../escape"
+    manifest.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    assert "SKILL_PATH_INVALID" in _codes(validate_skills.validate(manifest))
+
+
 def test_report_shape_and_exit_code(tmp_path, monkeypatch, capsys):
     _write_skill_md(tmp_path / "development" / "skill" / "runtime-ops", name="runtime-ops")
     manifest = _build_tree(tmp_path, _green_entries())
@@ -323,11 +436,11 @@ def test_report_shape_and_exit_code(tmp_path, monkeypatch, capsys):
         "errors",
     }
     assert report["ok"] is True
-    assert report["skills_checked"] == 2
+    assert report["skills_checked"] == 3
     assert report["errors"] == []
 
     broken = {
-        "schema_version": 2,
+        "schema_version": 3,
         "sources": [],
         "skills": [
             _entry("dupe", "development/skill/lib-a"),

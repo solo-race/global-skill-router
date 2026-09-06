@@ -21,7 +21,7 @@ Do not load all documentation by default.
 2. New skills go under `development/skill/<kebab-case-name>/`. Mandatory `SKILL.md` with YAML frontmatter: `name` == directory slug; `description` ends with a "Use when …" trigger phrase.
 3. All paths inside a skill resolve against the skill's own directory. Never hardcode deployment paths (`.codex/skills/…`).
 4. SKILL.md bodies are English, kilobyte-scale; deep material goes into the skill's own `references/`.
-5. Helper scripts are Python 3 with colocated pytest suites (`test_<name>.py`). Prefer stdlib-only; any third-party import must be declared here or in `development/docs/repo-conventions.md`. Declared dependencies: PyYAML (`development/tools/validate_skills.py`).
+5. Helper scripts are Python 3 with colocated pytest suites (`test_<name>.py`). Prefer stdlib-only; any third-party import must be declared here or in `development/docs/repo-conventions.md`. Declared dependency: PyYAML (`development/tools/validate_skills.py` and `development/tools/deploy_skills.py`).
 6. High-blast-radius automation (database writes, VBA project changes) must carry Contract / Stop Conditions / backup-rollback conventions.
 7. Do not introduce tooling speculatively — no build systems, linters, or CI unless required.
 8. Before adding material anywhere ask: will this change an agent's decision? If not, leave it out.
@@ -30,6 +30,8 @@ Do not load all documentation by default.
 
 ```bash
 py -3 development/tools/run_tests.py [pytest args...]   # run tests
+py -3 development/tools/deploy_skills.py [--target-root PATH]          # read-only deployment plan
+py -3 development/tools/deploy_skills.py --verify [--target-root PATH]  # verify managed payload
 ```
 
 ## Documentation Map

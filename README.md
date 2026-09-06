@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-项目已形成可验证的技能控制平台：`development/skill/manifest.yaml` 注册正式 Skill、owner-contained adapters 与只读设计来源，`development/tools/validate_skills.py` 负责生命周期、契约和场景路由门禁。当前有两个 active framework Skill，宿主扩展位按场景登记为 active 或 planned；`references` 仍是只读设计输入，不是部署依赖。
+项目已形成可验证的技能控制平台：`development/skill/manifest.yaml` 注册正式 Skill、owner-contained adapters 与只读设计来源，`development/tools/validate_skills.py` 负责生命周期、契约、场景路由和 deployment-role 门禁。当前由单一 active `global-skill-router` 暴露顶层入口，两个 active framework 作为 router modules；`development/tools/deploy_skills.py` 负责 routed payload 的 plan/apply/verify/rollback，`references` 仍是只读设计输入，不是部署依赖。
 
 ## 开发项目背景
 

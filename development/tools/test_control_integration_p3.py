@@ -1,6 +1,6 @@
 """P3 control-plane integration tests.
 
-These tests exercise the v2 registry as one control surface: optional sources,
+These tests exercise the v3 registry as one control surface: optional sources,
 skill lifecycle edges, entrypoint metadata, adapter ABI gates, deterministic
 route projection, and the disposable growth-loop probe from plan 040.
 """
@@ -27,6 +27,7 @@ def _skill(name, status="active", scenarios=None, entrypoint=False, **overrides)
         "name": name,
         "path": f"development/skill/{name}",
         "status": status,
+        "deployment_role": "module",
         "scenarios": list(scenarios or SCENARIOS),
         "deps": [],
         "composed_of": [],
@@ -100,12 +101,34 @@ def _write_adapter(root, owner, name="synthetic", *, environments=None,
 
 
 def _write_manifest(root, skills, sources=None, adapters=None):
+    skills = list(skills)
+    if not any(entry.get("name") == "global-skill-router" for entry in skills):
+        _write_skill(root, "global-skill-router", metadata=True)
+        active_names = [
+            entry["name"]
+            for entry in skills
+            if entry.get("status") == "active"
+        ]
+        skills.append(
+            {
+                "name": "global-skill-router",
+                "path": "development/skill/global-skill-router",
+                "status": "active",
+                "deployment_role": "router",
+                "scenarios": list(SCENARIOS),
+                "deps": [],
+                "composed_of": active_names,
+                "entrypoint": True,
+                "version": "0.1.0",
+                "description": "Synthetic router. Use when selecting a test module.",
+            }
+        )
     manifest = root / "development" / "skill" / "manifest.yaml"
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(
         yaml.safe_dump(
             {
-                "schema_version": 2,
+                "schema_version": 3,
                 "sources": list(sources or []),
                 "skills": list(skills),
                 "adapters": list(adapters or []),
@@ -133,12 +156,13 @@ def _codes(report):
     return [error["code"] for error in report["errors"]]
 
 
-def test_real_manifest_v2_is_green_and_routes_are_explicit():
+def test_real_manifest_v3_is_green_and_routes_are_explicit():
     report = validate_skills.validate(validate_skills.DEFAULT_MANIFEST)
     assert report["ok"] is True, report["errors"]
     assert report["sources_checked"] == 3
     assert report["adapters_checked"] == 4
     assert report["routes"]["win-access-vba"]["skills"] == [
+        {"name": "global-skill-router", "status": "active"},
         {"name": "runtime-ops", "status": "active"}
     ]
     assert report["routes"]["win-access-vba"]["adapters"] == [
@@ -149,6 +173,7 @@ def test_real_manifest_v2_is_green_and_routes_are_explicit():
         {"name": "android-gradle", "owner_skill": "runtime-ops", "status": "planned"}
     ]
     assert report["routes"]["wsl-python"]["skills"] == [
+        {"name": "global-skill-router", "status": "active"},
         {"name": "research-investigation", "status": "active"}
     ]
 
@@ -293,6 +318,151 @@ def test_adapter_owner_environment_and_recovery_gates(tmp_path):
     assert "ADAPTER_OWNER_UNKNOWN" in _codes(report)
 
 
+def _adapter_document(frontmatter, body="## 7. Recovery model\n\nRestore the transaction snapshot.\n"):
+    return "---\n" + yaml.safe_dump(frontmatter, sort_keys=False) + "---\n\n" + body
+
+
+def _valid_adapter_frontmatter(name="broken"):
+    return {
+        "adapter_schema_version": 1,
+        "adapter": name,
+        "environments": ["wsl-python"],
+        "capabilities": ["source.read"],
+        "task_modes": {"closed": False, "modes": ["inspect"]},
+        "verification_model_kind": "independent_checks",
+        "mutation_support": "bounded",
+    }
+
+
+@pytest.mark.parametrize(
+    "mutate, code",
+    [
+        (lambda value: value.update(adapter_schema_version=2), "ADAPTER_SCHEMA_VERSION_UNSUPPORTED"),
+        (lambda value: value.update(adapter="other"), "ADAPTER_ID_MISMATCH"),
+        (lambda value: value.update(environments=[]), "ADAPTER_ENVIRONMENTS_INVALID"),
+        (lambda value: value.update(environments=["unknown"]), "ADAPTER_ENVIRONMENTS_INVALID"),
+        (lambda value: value.update(environments=["wsl-python", "wsl-python"]), "ADAPTER_ENVIRONMENTS_INVALID"),
+        (lambda value: value.update(capabilities=[]), "ADAPTER_CAPABILITIES_INVALID"),
+        (lambda value: value.update(capabilities=["source.read", "source.read"]), "ADAPTER_CAPABILITY_DUPLICATE"),
+        (lambda value: value.update(task_modes={"modes": ["inspect"]}), "ADAPTER_TASK_MODES_INVALID"),
+        (lambda value: value.update(task_modes={"closed": "false", "modes": ["inspect"]}), "ADAPTER_TASK_MODES_INVALID"),
+        (lambda value: value.update(task_modes={"closed": False, "modes": []}), "ADAPTER_TASK_MODES_INVALID"),
+        (lambda value: value.update(task_modes={"closed": False, "modes": ["inspect", "inspect"]}), "ADAPTER_TASK_MODES_INVALID"),
+        (lambda value: value.update(verification_model_kind="unknown"), "ADAPTER_VERIFICATION_KIND_INVALID"),
+        (lambda value: value.update(mutation_support="unknown"), "ADAPTER_MUTATION_SUPPORT_INVALID"),
+    ],
+)
+def test_adapter_abi_negative_matrix(tmp_path, mutate, code):
+    _write_skill(tmp_path, "owner")
+    frontmatter = _valid_adapter_frontmatter()
+    mutate(frontmatter)
+    _write_adapter(
+        tmp_path,
+        "owner",
+        name="broken",
+        raw_frontmatter=_adapter_document(frontmatter),
+    )
+    report = validate_skills.validate(
+        _write_manifest(
+            tmp_path,
+            [_skill("owner")],
+            adapters=[_adapter_entry("broken", owner="owner")],
+        )
+    )
+    assert code in _codes(report)
+
+
+def test_mutating_adapter_requires_nonempty_recovery_section(tmp_path):
+    _write_skill(tmp_path, "owner")
+    frontmatter = _valid_adapter_frontmatter()
+    _write_adapter(
+        tmp_path,
+        "owner",
+        name="broken",
+        raw_frontmatter=_adapter_document(
+            frontmatter,
+            "## 7. Recovery model\n\n## 8. Environment\nNormal environment.\n",
+        ),
+    )
+    report = validate_skills.validate(
+        _write_manifest(
+            tmp_path,
+            [_skill("owner")],
+            adapters=[_adapter_entry("broken", owner="owner")],
+        )
+    )
+    assert "ADAPTER_RECOVERY_SECTION_MISSING" in _codes(report)
+
+
+def test_non_mutating_adapter_does_not_require_recovery_section(tmp_path):
+    _write_skill(tmp_path, "owner")
+    _write_adapter(tmp_path, "owner", name="readonly", mutation_support="none", recovery=False)
+    report = validate_skills.validate(
+        _write_manifest(
+            tmp_path,
+            [_skill("owner")],
+            adapters=[_adapter_entry("readonly", owner="owner")],
+        )
+    )
+    assert report["ok"] is True, report["errors"]
+
+
+def test_adapter_manifest_name_and_file_stem_must_match(tmp_path):
+    _write_skill(tmp_path, "owner")
+    frontmatter = _valid_adapter_frontmatter(name="manifest-name")
+    _write_adapter(
+        tmp_path,
+        "owner",
+        name="file-name",
+        raw_frontmatter=_adapter_document(frontmatter),
+    )
+    manifest_entry = _adapter_entry("manifest-name", owner="owner")
+    manifest_entry["path"] = "development/skill/owner/adapters/file-name.md"
+    report = validate_skills.validate(
+        _write_manifest(tmp_path, [_skill("owner")], adapters=[manifest_entry])
+    )
+    assert "ADAPTER_ID_MISMATCH" in _codes(report)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "../escape.md",
+        "development/skill/other/adapters/broken.md",
+        "development/skill/owner/adapters/other.md",
+    ],
+)
+def test_adapter_canonical_path_gate(tmp_path, path):
+    _write_skill(tmp_path, "owner")
+    _write_adapter(tmp_path, "owner", name="broken")
+    entry = _adapter_entry("broken", owner="owner")
+    entry["path"] = path
+    report = validate_skills.validate(
+        _write_manifest(tmp_path, [_skill("owner")], adapters=[entry])
+    )
+    assert "ADAPTER_PATH_INVALID" in _codes(report)
+
+
+@pytest.mark.parametrize("owner_status, code", [("planned", "ADAPTER_OWNER_NOT_ACTIVE"), ("unknown", "ADAPTER_OWNER_UNKNOWN")])
+def test_active_adapter_owner_must_be_active_and_registered(tmp_path, owner_status, code):
+    owner = "owner" if owner_status == "planned" else "ghost"
+    if owner_status == "planned":
+        _write_skill(tmp_path, owner)
+        skills = [_skill(owner, status="planned")]
+    else:
+        _write_skill(tmp_path, "base")
+        skills = [_skill("base")]
+    _write_adapter(tmp_path, "owner", name="broken")
+    report = validate_skills.validate(
+        _write_manifest(
+            tmp_path,
+            skills,
+            adapters=[_adapter_entry("broken", owner=owner)],
+        )
+    )
+    assert code in _codes(report)
+
+
 def test_route_projection_is_deterministic_and_keeps_planned_distinct(tmp_path):
     _write_skill(tmp_path, "base")
     skills = [_skill("zeta", status="planned"), _skill("base")]
@@ -304,6 +474,7 @@ def test_route_projection_is_deterministic_and_keeps_planned_distinct(tmp_path):
     assert report["ok"] is True, report["errors"]
     assert [item["name"] for item in report["routes"]["wsl-python"]["skills"]] == [
         "base",
+        "global-skill-router",
         "zeta",
     ]
     assert [item["name"] for item in report["routes"]["wsl-python"]["adapters"]] == [

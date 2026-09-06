@@ -6,9 +6,9 @@ Derived from three architecture reviews archived under [`architecture-ref/`](arc
 
 ## Project Overview
 
-Content repository building a global SKILL control platform ("Global Skill 结构构建") for the local Codex development environment. The platform now has a manifest/validator control plane plus two active framework Skills (`development/skill/research-investigation/` and `development/skill/runtime-ops/`), with read-only design references under `references/` and planned host adapters registered for future scenarios. Per `README.md` (Chinese), the mandated workflow is to analyze those structures and keep the deployed architecture under `development/skill/`. Target dev scenarios: Windows-native work (SQL databases, Access frontends, Access/Excel VBA), Android apps on Windows, and WSL Python filtering projects.
+Content repository building a global SKILL control platform ("Global Skill 结构构建") for the local Codex development environment. The platform has a manifest/validator control plane, a single active router Skill, and two active framework modules (`development/skill/research-investigation/` and `development/skill/runtime-ops/`), with read-only design references under `references/` and planned host adapters registered for future scenarios. Per `README.md` (Chinese), the mandated workflow is to analyze those structures and keep the deployed architecture under `development/skill/`. Target dev scenarios: Windows-native work (SQL databases, Access frontends, Access/Excel VBA), Android apps on Windows, and WSL Python filtering projects.
 
-There is no application source, build system, or deployable runtime here — deliverables are Markdown skill modules plus Python helper scripts (prefer stdlib-only; third-party imports only where declared, see **Python scripts** below).
+There is no application source or build system here. Deliverables are Markdown skill modules plus Python helper scripts; `development/tools/deploy_skills.py` assembles the routed runtime payload (prefer stdlib-only; third-party imports only where declared, see **Python scripts** below).
 
 ## Architecture & Data Flow
 
@@ -70,7 +70,7 @@ For heavier skills, extend toward the five-layer stack reviewed in `architecture
 
 ## Runtime/Tooling Preferences
 
-- Python 3 (scripts assume ≥3.8 APIs; no version pin file exists). `gh` CLI required by the two scripted reference skills; declared third-party dependency: PyYAML (YAML parsing for tools/validate_skills.py).
+- Python 3 (scripts assume ≥3.8 APIs; no version pin file exists). `gh` CLI required by the two scripted reference skills; declared third-party dependency: PyYAML (manifest/frontmatter parsing for `tools/validate_skills.py` and route generation for `tools/deploy_skills.py`).
 - No git history/config, no package manager, no formatter/linter config — do not introduce tooling speculatively; keep the repo minimal.
 - Command paths inside reference SKILL.md files address the upstream Codex checkout (`.codex/skills/…`); substitute `references/SpineCodex-skills/` locally. Some referenced validation targets do not exist in this repo — they belong upstream.
 
@@ -78,10 +78,13 @@ For heavier skills, extend toward the five-layer stack reviewed in `architecture
 
 - **Source of truth:** `development/skill/<name>/` is the source root for a managed Skill. Only
   entries whose `skills[].status` is `active` in `development/skill/manifest.yaml` are eligible
-  for deployment.
-- **Payload boundary:** deploy the complete Skill root. Existing `agents/`, `references/`,
-  `profiles/`, `adapters/`, and `scripts/` directories travel with that root when present;
-  `development/tools/`, plans, and read-only source references do not.
+  for deployment. The manifest must pass `validate_skills.py` before a payload is built.
+- **Routed payload boundary:** `deploy_skills.py` installs one managed top-level directory,
+  `global-skill-router/`. The router source is copied to the payload root; active
+  `deployment_role: module` Skills are copied below `global-skill-router/library/<name>/`.
+  Existing `agents/`, `references/`, `profiles/`, `adapters/`, and `scripts/` directories
+  travel with their owning Skill. `development/tools/`, plans, and read-only source references
+  never enter the payload.
 - **Owner rule:** adapters and profiles are owner-contained extensions. An adapter is deployed
   with its owner Skill and is not installed as a separate top-level Skill.
 - **Dependency rule:** before deploying an active Skill, its `deps[]` and active
@@ -93,9 +96,16 @@ For heavier skills, extend toward the five-layer stack reviewed in `architecture
 - **Self-containment:** an active Skill must retain all runtime decision-making material inside
   its own root. Optional `sources[]` references may be absent after deployment.
 - **Planned exclusion:** planned Skills and adapters are registration records, not runtime
-  capabilities, even if a development directory happens to exist.
-- **P3 limit:** this convention does not define a copy, symlink, junction, atomic replacement,
-  or rollback implementation. A future deployment manager needs its own operation contract.
+  capabilities, even if a development directory happens to exist. Planned entries never enter
+  route shards or `library/`.
+- **Managed operations:** the standard commands are `py -3 development/tools/deploy_skills.py`
+  (read-only plan), `--apply`, `--verify`, and `--rollback`; pass `--target-root PATH` for a
+  controlled user/project skill root. Apply stages a complete payload, keeps at most one
+  tool-owned previous snapshot beside the target root, verifies hashes/layout/routes, and
+  restores the previous managed router if replacement or verification fails.
+- **Drift and coexistence:** `--verify` reports missing, extra, or changed managed files without
+  overwriting them. The manager only owns `<target-root>/global-skill-router` and its dedicated
+  snapshot; legacy or unrelated Skills such as `vba-skill` are left byte-for-byte untouched.
 
 ## Testing & QA
 

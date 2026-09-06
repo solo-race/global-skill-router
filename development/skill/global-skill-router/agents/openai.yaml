@@ -1,0 +1,4 @@
+interface:
+  display_name: Global Skill Router
+  short_description: Selectively load the smallest managed module for a task.
+  default_prompt: Load $global-skill-router, inspect the applicable route shard, and load only the selected managed module.

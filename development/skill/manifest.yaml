@@ -1,4 +1,4 @@
-schema_version: 2
+schema_version: 3
 
 sources:
   - id: spinecodex-skills-upstream
@@ -24,6 +24,7 @@ skills:
   - name: research-investigation
     path: development/skill/research-investigation
     status: active
+    deployment_role: module
     scenarios: [wsl-python]
     deps: []
     composed_of: []
@@ -33,12 +34,23 @@ skills:
   - name: runtime-ops
     path: development/skill/runtime-ops
     status: active
+    deployment_role: module
     scenarios: [win-access-vba]
     deps: []
     composed_of: []
     entrypoint: true
     version: "0.1.0"
     description: Host-neutral runtime operations framework.
+  - name: global-skill-router
+    path: development/skill/global-skill-router
+    status: active
+    deployment_role: router
+    scenarios: [win-access-vba, win-android, wsl-python]
+    deps: []
+    composed_of: [research-investigation, runtime-ops]
+    entrypoint: true
+    version: "0.1.0"
+    description: Thin router for selective loading of managed skill modules.
 
 adapters:
   - name: vba-office

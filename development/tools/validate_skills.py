@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Skill registry validator for development/skill/manifest.yaml.
 
-Checks the registry against the P3 manifest/control contract. The current
-manifest schema is v2: read-only design sources, deployable skills, and
+Checks the registry against the P4 manifest/control contract. The current
+manifest schema is v3: read-only design sources, deployable skills, and
 framework-owned adapters have separate registry sections. Planned entries may
 be forward-registered before their directory exists; active entries must pass
 their complete activation gates.
@@ -34,12 +34,17 @@ DEFAULT_MANIFEST = REPO_ROOT / "development" / "skill" / "manifest.yaml"
 REQUIRED_FIELDS = ("name", "path", "status", "version", "description")
 LIST_FIELDS = ("scenarios", "deps", "composed_of")
 VALID_STATUSES = frozenset({"planned", "active"})
+VALID_DEPLOYMENT_ROLES = frozenset({"router", "module"})
 VALID_SOURCE_KINDS = frozenset({"upstream-snapshot", "local-reference"})
 VALID_SCENARIOS = frozenset({"win-access-vba", "win-android", "wsl-python"})
 VALID_VERIFICATION_KINDS = frozenset({"linear", "partial_order", "independent_checks"})
 VALID_MUTATION_SUPPORT = frozenset({"none", "bounded", "high-impact"})
 KEBAB_CASE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
-RECOVERY_HEADING = re.compile(r"^##+\s+(?:\d+\.\s*)?recovery(?:\s+model)?\b.*$", re.I | re.M)
+RECOVERY_HEADING = re.compile(
+    r"^(##+)\s+(?:\d+\.\s*)?recovery(?:\s+model)?\b.*$",
+    re.I,
+)
+HEADING = re.compile(r"^(#+)\s+\S.*$")
 # Closed top-level field set of the research-investigation Profile Contract (profile-contract.md).
 # Any other top-level key is a contract violation, never tolerated prose.
 PROFILE_KNOWN_FIELDS = frozenset({
@@ -109,12 +114,12 @@ def _load_manifest(manifest_path, errors):
             )
         )
         return None
-    if data.get("schema_version") != 2:
+    if data.get("schema_version") != 3:
         errors.append(
             _err(
                 "SCHEMA_VERSION_UNSUPPORTED",
                 "(manifest)",
-                f"schema_version must be 2, got {data.get('schema_version')!r}",
+                f"schema_version must be 3, got {data.get('schema_version')!r}",
             )
         )
         return None
@@ -505,6 +510,24 @@ def _read_frontmatter_document(path):
     return frontmatter, "\n".join(lines[close + 1 :]), None
 
 
+def _has_nonempty_recovery_section(body):
+    """Return whether the Recovery heading owns non-empty section content."""
+    lines = body.splitlines()
+    for index, line in enumerate(lines):
+        match = RECOVERY_HEADING.match(line.strip())
+        if match is None:
+            continue
+        level = len(match.group(1))
+        end = len(lines)
+        for next_index in range(index + 1, len(lines)):
+            heading = HEADING.match(lines[next_index].strip())
+            if heading and len(heading.group(1)) <= level:
+                end = next_index
+                break
+        return any(line.strip() for line in lines[index + 1 : end])
+    return False
+
+
 def _safe_repo_path(root, value):
     """Resolve a repo-relative path, returning None for absolute/escaping paths."""
     if not isinstance(value, str) or not value.strip():
@@ -593,7 +616,12 @@ def _adapter_contract_errors(adapter_path, manifest_entry):
     if not isinstance(manifest_envs, list) or not manifest_envs or any(not isinstance(value, str) for value in manifest_envs):
         manifest_envs = []
     fm_envs = frontmatter.get("environments")
-    if not isinstance(fm_envs, list) or not fm_envs or any(not isinstance(value, str) or value not in VALID_SCENARIOS for value in fm_envs):
+    if (
+        not isinstance(fm_envs, list)
+        or not fm_envs
+        or any(not isinstance(value, str) or value not in VALID_SCENARIOS for value in fm_envs)
+        or len(fm_envs) != len(set(fm_envs))
+    ):
         errors.append(_err("ADAPTER_ENVIRONMENTS_INVALID", label, "frontmatter environments must be a non-empty list of valid scenarios"))
         fm_envs = []
     if manifest_envs and sorted(manifest_envs) != sorted(fm_envs):
@@ -612,7 +640,7 @@ def _adapter_contract_errors(adapter_path, manifest_entry):
         if "closed" not in task_modes or not isinstance(task_modes.get("closed"), bool):
             errors.append(_err("ADAPTER_TASK_MODES_INVALID", label, "task_modes.closed must be an explicit boolean"))
         modes = task_modes.get("modes")
-        if not isinstance(modes, list) or any(not isinstance(value, str) or not value.strip() for value in modes):
+        if not isinstance(modes, list) or not modes or any(not isinstance(value, str) or not value.strip() for value in modes):
             errors.append(_err("ADAPTER_TASK_MODES_INVALID", label, "task_modes.modes must be a list of strings"))
         elif len(modes) != len(set(modes)):
             errors.append(_err("ADAPTER_TASK_MODES_INVALID", label, "task_modes.modes must not contain duplicates"))
@@ -623,8 +651,8 @@ def _adapter_contract_errors(adapter_path, manifest_entry):
     mutation = frontmatter.get("mutation_support")
     if mutation not in VALID_MUTATION_SUPPORT:
         errors.append(_err("ADAPTER_MUTATION_SUPPORT_INVALID", label, f"mutation_support must be one of {sorted(VALID_MUTATION_SUPPORT)}"))
-    elif mutation != "none" and not RECOVERY_HEADING.search(body):
-        errors.append(_err("ADAPTER_RECOVERY_SECTION_MISSING", label, "mutating adapters must declare a Recovery model section"))
+    elif mutation != "none" and not _has_nonempty_recovery_section(body):
+        errors.append(_err("ADAPTER_RECOVERY_SECTION_MISSING", label, "mutating adapters must declare a non-empty Recovery model section"))
     return errors
 
 
@@ -648,7 +676,36 @@ def _adapter_errors(entry, index, root, skill_statuses):
     if not isinstance(envs, list) or not envs or any(not isinstance(value, str) or value not in VALID_SCENARIOS for value in envs) or len(envs) != len(set(envs)):
         errors.append(_err("ADAPTER_ENVIRONMENTS_INVALID", label, "manifest environments must be a non-empty list of unique valid scenarios"))
     rel_path = entry.get("path")
-    adapter_path = root / rel_path if isinstance(rel_path, str) and rel_path else None
+    adapter_path = _safe_repo_path(root, rel_path)
+    if adapter_path is not None and isinstance(owner, str) and owner:
+        expected_dir = (Path(root) / "development" / "skill" / owner / "adapters").resolve()
+        expected_path = expected_dir / f"{label}.md"
+        try:
+            adapter_path.relative_to(expected_dir)
+        except ValueError:
+            errors.append(
+                _err(
+                    "ADAPTER_PATH_INVALID",
+                    label,
+                    f"adapter path must stay under owner adapters directory: {rel_path!r}",
+                )
+            )
+        if adapter_path != expected_path:
+            errors.append(
+                _err(
+                    "ADAPTER_PATH_INVALID",
+                    label,
+                    f"adapter path must equal {expected_path.relative_to(root).as_posix()!r}",
+                )
+            )
+    elif adapter_path is None:
+        errors.append(
+            _err(
+                "ADAPTER_PATH_INVALID",
+                label,
+                f"adapter path must stay within repository: {rel_path!r}",
+            )
+        )
     if status == "active" and (adapter_path is None or not adapter_path.is_file()):
         errors.append(_err("ACTIVE_ADAPTER_PATH_MISSING", label, f"active adapter file is missing: {rel_path}"))
     if adapter_path is not None and adapter_path.is_file():
@@ -668,6 +725,15 @@ def _check_skill_entry_v2(entry, index, root, errors):
     status = entry.get("status")
     if status not in VALID_STATUSES:
         errors.append(_err("INVALID_STATUS", name, f"status must be one of {sorted(VALID_STATUSES)}, got {status!r}"))
+    deployment_role = entry.get("deployment_role")
+    if deployment_role not in VALID_DEPLOYMENT_ROLES:
+        errors.append(
+            _err(
+                "DEPLOYMENT_ROLE_INVALID",
+                name,
+                f"deployment_role must be one of {sorted(VALID_DEPLOYMENT_ROLES)}, got {deployment_role!r}",
+            )
+        )
     lists = {}
     for field in LIST_FIELDS:
         value = entry.get(field)
@@ -684,7 +750,25 @@ def _check_skill_entry_v2(entry, index, root, errors):
         errors.append(_err("ENTRYPOINT_FLAG_INVALID", name, "entrypoint must be a boolean"))
 
     rel_path = entry.get("path")
-    skill_dir = root / rel_path if isinstance(rel_path, str) and rel_path else None
+    skill_dir = _safe_repo_path(root, rel_path)
+    if skill_dir is None:
+        errors.append(
+            _err(
+                "SKILL_PATH_INVALID",
+                name,
+                f"skill path must stay within repository: {rel_path!r}",
+            )
+        )
+    elif isinstance(name, str) and not name.startswith("<"):
+        expected = (Path(root) / "development" / "skill" / name).resolve()
+        if skill_dir != expected:
+            errors.append(
+                _err(
+                    "SKILL_PATH_INVALID",
+                    name,
+                    f"skill path must equal {expected.relative_to(root).as_posix()!r}",
+                )
+            )
     if status == "planned":
         if skill_dir is not None and (skill_dir / "SKILL.md").is_file():
             errors.extend(_frontmatter_errors(skill_dir, name, PurePosixPath(rel_path).name))
@@ -774,6 +858,90 @@ def _validate_edges(entries, errors):
                 visit(node)
 
 
+def _deployment_errors(entries, errors):
+    """Validate the physical catalog contract introduced by P4."""
+    valid_entries = [
+        entry
+        for entry in entries
+        if isinstance(entry, dict) and isinstance(entry.get("name"), str)
+    ]
+    routers = [
+        entry for entry in valid_entries
+        if entry.get("deployment_role") == "router"
+    ]
+    active_routers = [entry for entry in routers if entry.get("status") == "active"]
+    if len(active_routers) != 1:
+        errors.append(
+            _err(
+                "ROUTER_CARDINALITY_INVALID",
+                "(manifest)",
+                f"manifest must contain exactly one active router, found {len(active_routers)}",
+            )
+        )
+        return
+
+    router = active_routers[0]
+    router_name = router.get("name")
+    if router_name != "global-skill-router":
+        errors.append(
+            _err(
+                "ROUTER_ID_INVALID",
+                router_name,
+                "the active router must be named global-skill-router",
+            )
+        )
+    if router.get("entrypoint") is not True or not isinstance(router.get("scenarios"), list) or not router.get("scenarios"):
+        errors.append(
+            _err(
+                "ROUTER_ACTIVATION_INVALID",
+                router_name,
+                "active router must be entrypoint=true and declare at least one scenario",
+            )
+        )
+
+    direct = router.get("composed_of") if isinstance(router.get("composed_of"), list) else []
+    direct_names = {value for value in direct if isinstance(value, str)}
+    active_modules = [
+        entry for entry in valid_entries
+        if entry.get("status") == "active" and entry.get("deployment_role") == "module"
+    ]
+    for entry in active_modules:
+        name = entry.get("name")
+        if entry.get("entrypoint") is True and name not in direct_names:
+            errors.append(
+                _err(
+                    "ROUTER_MODULE_UNCOVERED",
+                    name,
+                    "active entrypoint module must appear in router composed_of",
+                )
+            )
+
+    graph = {
+        entry.get("name"): [
+            ref for ref in (entry.get("composed_of") or [])
+            if isinstance(ref, str)
+        ]
+        for entry in valid_entries
+    }
+    reachable = set()
+    pending = list(direct_names)
+    while pending:
+        current = pending.pop()
+        if current in reachable:
+            continue
+        reachable.add(current)
+        pending.extend(graph.get(current, []))
+    for entry in active_modules:
+        if entry.get("entrypoint") is False and entry.get("name") not in reachable:
+            errors.append(
+                _err(
+                    "MODULE_UNREACHABLE",
+                    entry.get("name"),
+                    "active non-entrypoint module is not reachable from router composed_of",
+                )
+            )
+
+
 def _build_routes(skills, adapters):
     routes = {
         scenario: {"skills": [], "adapters": []}
@@ -812,7 +980,7 @@ def _route_errors(routes):
 
 
 def validate(manifest_path):
-    """Run the full schema-v2 control-plane check and return its report."""
+    """Run the full schema-v3 control-plane check and return its report."""
     manifest_path = Path(manifest_path)
     errors = []
     loaded = _load_manifest(manifest_path, errors)
@@ -847,6 +1015,7 @@ def validate(manifest_path):
     for duplicate in sorted(duplicates):
         errors.append(_err("DUPLICATE_NAME", duplicate, "duplicate skill name in manifest"))
     _validate_edges(entries, errors)
+    _deployment_errors(entries, errors)
 
     skill_statuses = {
         entry.get("name"): entry.get("status")
