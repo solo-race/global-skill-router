@@ -383,6 +383,34 @@ def test_planned_adapter_file_is_excluded_from_assembled_payload(tmp_path):
     assert "planned-adapter" not in route_text
 
 
+def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_path):
+    payload = _build(deploy_skills.DEFAULT_MANIFEST, tmp_path / "staging")
+    runtime_ops = payload["payload_root"] / "library" / "runtime-ops"
+
+    assert (runtime_ops / "adapters" / "gpt-repo-local.md").is_file()
+    assert (runtime_ops / "adapters" / "vba-office.md").is_file()
+    for planned_name in ("sql-server.md", "android-gradle.md", "wsl-python.md"):
+        assert not (runtime_ops / "adapters" / planned_name).exists()
+
+    for scenario in SCENARIOS:
+        shard = yaml.safe_load(
+            (payload["payload_root"] / "_platform" / "routes" / f"{scenario}.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+        runtime_entry = next(
+            item for item in shard["skills"] if item["name"] == "runtime-ops"
+        )
+        assert runtime_entry["name"] == "runtime-ops"
+        assert runtime_entry["skill_path"] == "library/runtime-ops/SKILL.md"
+        assert runtime_entry["status"] == "active"
+        assert runtime_entry["description"]
+
+    target_root = tmp_path / "skills"
+    deploy_skills.apply_payload(target_root, payload)
+    assert sorted(path.name for path in target_root.iterdir()) == ["global-skill-router"]
+
+
 def test_adapter_canonical_path_gate_blocks_deploy(tmp_path):
     manifest, _ = _fixture_repo(tmp_path, adapter_fixture=True)
     payload = yaml.safe_load(manifest.read_text(encoding="utf-8"))

@@ -160,22 +160,39 @@ def test_real_manifest_v3_is_green_and_routes_are_explicit():
     report = validate_skills.validate(validate_skills.DEFAULT_MANIFEST)
     assert report["ok"] is True, report["errors"]
     assert report["sources_checked"] == 3
-    assert report["adapters_checked"] == 4
+    assert report["adapters_checked"] == 5
     assert report["routes"]["win-access-vba"]["skills"] == [
         {"name": "global-skill-router", "status": "active"},
         {"name": "runtime-ops", "status": "active"}
     ]
+    assert report["routes"]["win-android"]["skills"] == [
+        {"name": "global-skill-router", "status": "active"},
+        {"name": "runtime-ops", "status": "active"}
+    ]
     assert report["routes"]["win-access-vba"]["adapters"] == [
+        {"name": "gpt-repo-local", "owner_skill": "runtime-ops", "status": "active"},
         {"name": "sql-server", "owner_skill": "runtime-ops", "status": "planned"},
         {"name": "vba-office", "owner_skill": "runtime-ops", "status": "active"},
     ]
     assert report["routes"]["win-android"]["adapters"] == [
-        {"name": "android-gradle", "owner_skill": "runtime-ops", "status": "planned"}
+        {"name": "android-gradle", "owner_skill": "runtime-ops", "status": "planned"},
+        {"name": "gpt-repo-local", "owner_skill": "runtime-ops", "status": "active"},
     ]
     assert report["routes"]["wsl-python"]["skills"] == [
         {"name": "global-skill-router", "status": "active"},
-        {"name": "research-investigation", "status": "active"}
+        {"name": "research-investigation", "status": "active"},
+        {"name": "runtime-ops", "status": "active"},
     ]
+    assert report["routes"]["wsl-python"]["adapters"] == [
+        {"name": "gpt-repo-local", "owner_skill": "runtime-ops", "status": "active"},
+        {"name": "wsl-python", "owner_skill": "runtime-ops", "status": "planned"},
+    ]
+
+    for scenario in ("win-android", "wsl-python"):
+        assert all(
+            item["name"] != "vba-office"
+            for item in report["routes"][scenario]["adapters"]
+        )
 
 
 def test_optional_source_may_be_missing_but_required_source_cannot(tmp_path):

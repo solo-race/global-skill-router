@@ -35,7 +35,7 @@ skills:
     path: development/skill/runtime-ops
     status: active
     deployment_role: module
-    scenarios: [win-access-vba]
+    scenarios: [win-access-vba, win-android, wsl-python]
     deps: []
     composed_of: []
     entrypoint: true
@@ -53,6 +53,13 @@ skills:
     description: Thin router for selective loading of managed skill modules.
 
 adapters:
+  - name: gpt-repo-local
+    path: development/skill/runtime-ops/adapters/gpt-repo-local.md
+    status: active
+    owner_skill: runtime-ops
+    environments: [win-access-vba, win-android, wsl-python]
+    version: "0.1.0"
+    description: Local repository read, control, validation, and review through the installed GPT Repo CLI.
   - name: vba-office
     path: development/skill/runtime-ops/adapters/vba-office.md
     status: active
