@@ -18,8 +18,9 @@ active capability.
 2. Read only the shard needed for the current task; read a second shard only
    when the scenario is genuinely ambiguous.
 3. Choose the smallest matching module set, normally one module.
-4. Read the selected `library/<module>/SKILL.md` and follow that module's
-   progressive-disclosure rules for profiles, adapters, and references.
+4. Read the selected `library/<module>/SKILL.md`, reusing it while reliably
+   loaded and unchanged in the current task scope. Follow that module's
+   load/reuse rules for profiles, adapters, and references.
 
 Do not scan `library/`, glob module paths, or pre-read modules that were not
 selected. If no route matches, report no-match and continue without loading a

@@ -389,6 +389,11 @@ def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_pa
 
     assert (runtime_ops / "adapters" / "gpt-repo-local.md").is_file()
     assert (runtime_ops / "adapters" / "vba-office.md").is_file()
+    source_adapter = (
+        Path(__file__).resolve().parents[1]
+        / "skill" / "runtime-ops" / "adapters" / "gpt-repo-local.md"
+    )
+    assert (runtime_ops / "adapters" / "gpt-repo-local.md").read_bytes() == source_adapter.read_bytes()
     for planned_name in ("sql-server.md", "android-gradle.md", "wsl-python.md"):
         assert not (runtime_ops / "adapters" / planned_name).exists()
 

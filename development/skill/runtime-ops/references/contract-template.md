@@ -30,7 +30,7 @@ List stable capability ids and map every concrete registered tool to one. The Co
 
 ## 3. Operations
 
-For each operation give the real registered name, signature, defaults, return shape, host applicability, and the load-bearing semantics a caller cannot infer from the signature: replacement scope, timeout behavior, encodings, async handles, id conventions. Inline everything needed to form correct calls and judge results; external documentation is never a runtime dependency of a deployed adapter.
+For each operation give the real registered name, capability mapping, host applicability, and load-bearing semantics a caller cannot infer from the signature: replacement scope, timeout behavior, encodings, async handles, id conventions. Give signatures, defaults, and return shapes inline unless the target runtime exposes an explicit, reachable provider mechanism that returns the invocation schema needed to form a correct call, such as a live provider catalog that serves schemas. Declare how to obtain that schema before invocation and stop if it is unavailable or incompatible. Only such a mechanism licenses omission. A mechanism that returns tool identity, availability, or metadata but not call schemas does not qualify: the adapter must then inline the real registered name, capability mapping, minimal invocation signature, defaults or constraints that change call correctness but cannot be derived from the signature, and result interpretation and safety semantics. Copying full output schemas is never required. Keep the admitted tool boundary and result interpretation rules in the adapter. External documentation or a reference checkout must never become a runtime dependency of a deployed adapter.
 
 ## 4. Preconditions and failures
 

@@ -156,6 +156,146 @@ def _codes(report):
     return [error["code"] for error in report["errors"]]
 
 
+def test_runtime_adapter_contract_reuse_is_scoped_and_invalidated():
+    skill_root = Path(__file__).resolve().parents[1] / "skill"
+    runtime = (skill_root / "runtime-ops" / "SKILL.md").read_text(encoding="utf-8")
+    assert "before any external tool call" not in runtime
+    for requirement in (
+        "before its capabilities are first needed",
+        "current task/session scope",
+        "Reuse the loaded contract for subsequent operations",
+        "adapter identity, provider/catalog compatibility, capability boundary",
+        "switching adapters",
+        "capability not covered by the loaded contract",
+        "provider/version/protocol/catalog compatibility changes or needs reconfirmation",
+        "context is lost or compacted",
+        "precondition to be revalidated",
+        "no persistent cache, disk cache, daemon state, or hidden cross-session state",
+        "Reuse does not waive capability checks or operation-specific preconditions",
+    ):
+        assert requirement in runtime
+
+    router = (skill_root / "global-skill-router" / "SKILL.md").read_text(encoding="utf-8")
+    assert "reusing it while reliably" in router
+    assert "load/reuse rules for profiles, adapters, and references" in router
+    assert "Read only the shard needed" in router
+    assert "Choose the smallest matching module set" in router
+    assert "Do not scan `library/`" in router
+
+
+def test_gpt_repo_local_is_a_compact_read_only_contract():
+    adapter = (
+        Path(__file__).resolve().parents[1]
+        / "skill" / "runtime-ops" / "adapters" / "gpt-repo-local.md"
+    )
+    content = adapter.read_bytes()
+    # Room for the minimal invocation signatures while still forbidding a return
+    # to the 14,789-byte schema copy.
+    assert len(content) < 11_000
+    text = content.decode("utf-8")
+    metadata = yaml.safe_load(text.split("---", 2)[1])
+    expected = {
+        "repository.discover": {"repo_list_roots"},
+        "repository.read": {"repo_policy_explain", "repo_search", "repo_fetch_file", "repo_read_many"},
+        "repository.git-status": {"repo_git_status", "repo_git_diff"},
+        "repository.validate": {"repo_validate"},
+        "repository.review": {"repo_git_review", "repo_ship_review"},
+    }
+    admitted = {}
+    for line in text.splitlines():
+        if line.startswith("| repository."):
+            capability, names = line.strip("|").split("|")
+            admitted[capability.strip()] = {
+                name.strip().strip("`") for name in names.split(",")
+            }
+    assert admitted == expected
+    assert set(metadata["capabilities"]) == set(expected)
+    assert metadata["mutation_support"] == "none"
+    assert metadata["verification_model_kind"] == "independent_checks"
+    states = {
+        line.split("|", 2)[1].strip().strip("`")
+        for line in text.splitlines() if line.startswith("| `")
+    }
+    assert states == {
+        "read_observed", "git_observed", "validation_observed",
+        "review_observed", "ship_review_observed",
+    }
+    for boundary in (
+        "Catalog discovery is not permission",
+        "Tools absent from this allowlist must not be invoked",
+        "protocol_version: 1",
+        "gpt-repo-local invoke <tool-name>",
+        "one UTF-8 JSON object on stdin",
+        "machine-authoritative result",
+        "Preserve exit status",
+        "repository-relative POSIX paths inside the approved root",
+        "failed/skipped results remain failed/skipped",
+        "recommendations only, never adapter mutation authorization",
+        "No `repo_write_*`, stage/commit, restore/recovery, patchset apply, delegation writes, or cleanup mutation",
+        "arbitrary shell substitute",
+        "only a repository-approved validation profile",
+        "success in one does not upgrade another",
+        "never a deployment or runtime dependency",
+        "reuse it only while its compatibility and context remain valid",
+    ):
+        assert boundary in text
+
+    # The live catalog carries no invocation schema; the adapter must not defer to it.
+    assert "Obtain the selected tool's schema from that authority before invocation" not in text
+    for statement in (
+        "The catalog is not an invocation-schema source",
+        "name, title, package, tier, annotations, and required capabilities",
+        "development and maintenance reference of record",
+    ):
+        assert statement in text
+
+    # Minimal invocation signatures: one line per admitted tool, inputs only.
+    signature_block = text.split("```text", 1)[1].split("```", 1)[0]
+    lines = signature_block.strip().splitlines()
+    assert len(lines) == 10
+    signatures = dict(line.split(None, 1) for line in lines)
+    assert set(signatures) == {name for names in expected.values() for name in names}
+    assert signatures["repo_list_roots"] == "{}"
+    for tool, required in {
+        "repo_policy_explain": "repo_id: string",
+        "repo_search": "query: string",
+        "repo_fetch_file": "path: string",
+        "repo_read_many": "paths?: string[]",
+        "repo_git_status": "repo_id: string",
+        "repo_git_diff": "compare?: string",
+        "repo_validate": '"typecheck"',
+        "repo_git_review": "commit_plan",
+        "repo_ship_review": '"test_gap"',
+    }.items():
+        assert required in signatures[tool]
+    for constraint in (
+        "at least one of `paths` or `include_globs` must be non-empty",
+        "reusable only in the operation/filter scope that produced it",
+        "pass `repo_id` alone first for the raw diff",
+        "only repository-approved runners/profiles are selectable",
+        "authorize nothing",
+        "context_lines 0..5",
+        "context_lines 0..20",
+        "timeout_ms maximum 300000",
+        "paths maximum 100",
+        "categories maximum 7",
+        "max_findings maximum 100",
+        "max_files maximum 500",
+    ):
+        assert constraint in text
+
+    # Provenance must not re-appoint the live catalog as a schema source.
+    provenance = text.split("## Provenance", 1)[1]
+    assert "schema/result sources of truth" not in provenance
+    assert "not an invocation-schema source" in provenance
+    assert "runtime authority for provider identity, protocol compatibility" in provenance
+    assert "development and maintenance reference of record" in provenance
+
+    assert "```json" not in text
+    assert "inputSchema" not in text
+    assert '"properties"' not in text
+
+
 def test_real_manifest_v3_is_green_and_routes_are_explicit():
     report = validate_skills.validate(validate_skills.DEFAULT_MANIFEST)
     assert report["ok"] is True, report["errors"]

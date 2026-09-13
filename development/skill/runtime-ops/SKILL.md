@@ -13,7 +13,7 @@ Applies wherever an external tool or host exposes an explicit contract and a tas
 
 ## Core contract
 
-1. Load the matching adapter before any external tool call. With no adapter, or when the needed capability is not declared, stop the affected operation or degrade to analysis that does not depend on it. Never assume a capability exists merely because a workflow describes it; follow the exact contract and preserve actual errors.
+1. Establish a valid selected adapter contract under Adapter routing before using its capabilities. With no valid contract, or when the needed capability is not declared, stop the affected operation or degrade to analysis that does not depend on it. Never assume a capability exists merely because a workflow describes it; follow the exact contract and preserve actual errors.
 2. Preserve exact operation identity, relevant inputs, returned status, and failure message. Never rewrite an actual failure into a qualified success.
 3. Distinguish observation, mutation, and verification. A completed write is not behavioral correctness.
 4. A mutation executes only when it satisfies the adapter's recovery contract; without one, high-impact writes are prohibited.
@@ -25,7 +25,7 @@ Applies wherever an external tool or host exposes an explicit contract and a tas
 
 1. Classify intent and blast radius.
 2. Select the adapter and target environment.
-3. Load declared capabilities and preconditions.
+3. Establish declared capabilities and preconditions using the load/reuse rules below.
 4. Inspect or read the current state the operation depends on.
 5. When mutating, prepare and verify the recovery path first.
 6. Execute the smallest scoped operation.
@@ -38,7 +38,17 @@ Adapters may layer mode-specific workflows onto this sequence, but they may not 
 
 ## Adapter routing
 
-Load only the adapter matching the current host and toolchain. If none matches, do not guess a contract from a similar host; report the missing adapter and continue only with work that needs no undeclared capability. Adapter documents follow `references/contract-template.md`.
+Load only the adapter matching the current host and toolchain, before its capabilities are first needed in the current task/session scope. Reuse the loaded contract for subsequent operations in that continuous scope while adapter identity, provider/catalog compatibility, capability boundary, and the relevant contract remain unchanged and reliably available in context. Do not reread the complete adapter for every call.
+
+Reload the contract or reconfirm the affected requirement before proceeding when:
+
+- switching adapters;
+- requesting a capability not covered by the loaded contract;
+- provider/version/protocol/catalog compatibility changes or needs reconfirmation;
+- context is lost or compacted so the contract's continued availability cannot be reliably established;
+- the adapter requires a precondition to be revalidated.
+
+Loaded means current model context only: no persistent cache, disk cache, daemon state, or hidden cross-session state. Reuse does not waive capability checks or operation-specific preconditions. If none matches, do not guess a contract from a similar host; report the missing adapter and continue only with work that needs no undeclared capability. Adapter documents follow `references/contract-template.md`.
 
 ## Verification discipline
 
