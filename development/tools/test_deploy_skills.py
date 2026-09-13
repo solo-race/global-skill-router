@@ -387,13 +387,8 @@ def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_pa
     payload = _build(deploy_skills.DEFAULT_MANIFEST, tmp_path / "staging")
     runtime_ops = payload["payload_root"] / "library" / "runtime-ops"
 
-    assert (runtime_ops / "adapters" / "gpt-repo-local.md").is_file()
+    assert not (runtime_ops / "adapters" / "gpt-repo-local.md").exists()
     assert (runtime_ops / "adapters" / "vba-office.md").is_file()
-    source_adapter = (
-        Path(__file__).resolve().parents[1]
-        / "skill" / "runtime-ops" / "adapters" / "gpt-repo-local.md"
-    )
-    assert (runtime_ops / "adapters" / "gpt-repo-local.md").read_bytes() == source_adapter.read_bytes()
     for planned_name in ("sql-server.md", "android-gradle.md", "wsl-python.md"):
         assert not (runtime_ops / "adapters" / planned_name).exists()
 
@@ -403,6 +398,11 @@ def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_pa
                 encoding="utf-8"
             )
         )
+        names = [item["name"] for item in shard["skills"]]
+        if scenario != "win-access-vba":
+            assert "runtime-ops" not in names
+            assert names == (["research-investigation"] if scenario == "wsl-python" else [])
+            continue
         runtime_entry = next(
             item for item in shard["skills"] if item["name"] == "runtime-ops"
         )
