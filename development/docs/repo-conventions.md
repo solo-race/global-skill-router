@@ -44,6 +44,7 @@ For heavier skills, extend toward the five-layer stack reviewed in `architecture
 ## Code Conventions & Common Patterns
 
 **SKILL.md format** (all English; only root README.md is Chinese):
+
 - Frontmatter: exactly two fields, `name` and `description`; `name` must equal the directory slug. Description is one sentence ending with a "Use when …" trigger phrase for discovery matching.
 - Body scales with complexity: minimal skills are frontmatter + prose bullets; larger ones use H1 title, numbered workflow steps, fenced ```bash command blocks, Stop Conditions, References.
 - Orchestrator pattern: `code-review/SKILL.md` delegates to the `code-review-*` sub-modules.
@@ -51,6 +52,7 @@ For heavier skills, extend toward the five-layer stack reviewed in `architecture
 **agents/openai.yaml**: single `interface:` mapping with `display_name`, `short_description`, `default_prompt`; `default_prompt` embeds the `$<skill-name>` trigger. Only for agent-facing entry skills.
 
 **Python scripts** (stdlib-first — third-party imports only where declared in AGENTS.md Core Rule 5; external systems accessed via subprocess/MCP):
+
 - Shebang `#!/usr/bin/env python3` + module docstring; no type annotations; conservative Python 3.8+ compatibility.
 - `parse_args()` builds argparse; flag conflicts validated post-parse via `parser.error(...)`.
 - Subprocess failures wrapped in a custom error class carrying formatted stdout/stderr.
