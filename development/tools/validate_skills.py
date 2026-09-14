@@ -1038,6 +1038,9 @@ def validate(manifest_path):
     scan_dir = manifest_path.parent
     if scan_dir.is_dir():
         registered = {entry.get("path") for entry in entries if isinstance(entry, dict)}
+        registered.update(
+            source.get("path") for source in sources if isinstance(source, dict)
+        )
         for child in sorted(scan_dir.iterdir()):
             if child.is_dir():
                 relative = child.relative_to(root).as_posix()

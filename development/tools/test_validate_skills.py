@@ -300,6 +300,29 @@ def test_unregistered_dir_detected(tmp_path):
     assert len(matches) == 1
 
 
+def test_registered_source_under_skill_dir_is_not_reported_as_unregistered(tmp_path):
+    manifest = _build_tree(tmp_path, _green_entries())
+    source_dir = tmp_path / "development" / "skill" / "source-repo"
+    source_dir.mkdir(parents=True)
+    payload = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    payload["sources"] = [
+        {
+            "id": "source-repo-reference",
+            "path": "development/skill/source-repo",
+            "kind": "local-reference",
+            "required": False,
+            "version": "2026-09-14",
+            "description": "Local source repository used to derive a managed skill.",
+        }
+    ]
+    manifest.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    report = validate_skills.validate(manifest)
+    assert not any(
+        error["code"] == "UNREGISTERED_SKILL" and error["skill"] == "source-repo"
+        for error in report["errors"]
+    )
+
+
 def test_duplicate_names_rejected(tmp_path):
     entries = [
         _entry("dupe", "development/skill/lib-a", "planned"),

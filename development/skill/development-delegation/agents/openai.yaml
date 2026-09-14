@@ -1,0 +1,4 @@
+interface:
+  display_name: Development Delegation
+  short_description: Execute an existing acceptance contract through bounded delegation and evidence gates.
+  default_prompt: Load $development-delegation and execute the active contract one acceptance unit at a time.

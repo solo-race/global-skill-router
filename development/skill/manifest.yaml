@@ -20,6 +20,13 @@ sources:
     version: "2026-08-25"
     description: Read-only source skill used to derive runtime-ops and vba-office.
 
+  - id: development-delegation-loop-reference
+    path: development/skill/Development-delegation-loop
+    kind: local-reference
+    required: false
+    version: "2026-09-14"
+    description: Local source repository for the managed development-delegation skill.
+
 skills:
   - name: research-investigation
     path: development/skill/research-investigation
@@ -41,13 +48,23 @@ skills:
     entrypoint: true
     version: "0.1.0"
     description: Host-neutral runtime operations framework.
+  - name: development-delegation
+    path: development/skill/development-delegation
+    status: active
+    deployment_role: module
+    scenarios: [win-access-vba, win-android, wsl-python]
+    deps: []
+    composed_of: []
+    entrypoint: true
+    version: "0.1.0"
+    description: Execute existing implementation contracts through bounded delegation and evidence gates.
   - name: global-skill-router
     path: development/skill/global-skill-router
     status: active
     deployment_role: router
     scenarios: [win-access-vba, win-android, wsl-python]
     deps: []
-    composed_of: [research-investigation, runtime-ops]
+    composed_of: [development-delegation, research-investigation, runtime-ops]
     entrypoint: true
     version: "0.1.0"
     description: Thin router for selective loading of managed skill modules.

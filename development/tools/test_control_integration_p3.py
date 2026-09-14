@@ -186,13 +186,15 @@ def test_runtime_adapter_contract_reuse_is_scoped_and_invalidated():
 def test_real_manifest_v3_is_green_and_routes_are_explicit():
     report = validate_skills.validate(validate_skills.DEFAULT_MANIFEST)
     assert report["ok"] is True, report["errors"]
-    assert report["sources_checked"] == 3
+    assert report["sources_checked"] == 4
     assert report["adapters_checked"] == 4
     assert report["routes"]["win-access-vba"]["skills"] == [
+        {"name": "development-delegation", "status": "active"},
         {"name": "global-skill-router", "status": "active"},
         {"name": "runtime-ops", "status": "active"}
     ]
     assert report["routes"]["win-android"]["skills"] == [
+        {"name": "development-delegation", "status": "active"},
         {"name": "global-skill-router", "status": "active"},
     ]
     assert report["routes"]["win-access-vba"]["adapters"] == [
@@ -203,6 +205,7 @@ def test_real_manifest_v3_is_green_and_routes_are_explicit():
         {"name": "android-gradle", "owner_skill": "runtime-ops", "status": "planned"},
     ]
     assert report["routes"]["wsl-python"]["skills"] == [
+        {"name": "development-delegation", "status": "active"},
         {"name": "global-skill-router", "status": "active"},
         {"name": "research-investigation", "status": "active"},
     ]

@@ -8,9 +8,12 @@ this page must not be edited as a second route registry.
 
 | Scenario | Intent / control plane | Current route | State |
 |---|---|---|---|
+| `win-access-vba` | Execute an existing implementation/acceptance contract | `development-delegation` | active |
 | `win-access-vba` | Host/tool inspection, mutation, and testing | `runtime-ops` + `vba-office` | active |
 | `win-access-vba` | SQL Server runtime operations | `runtime-ops` + `sql-server` | planned; no adapter capability yet |
+| `win-android` | Execute an existing implementation/acceptance contract | `development-delegation` | active |
 | `win-android` | Android/Gradle runtime operations | `runtime-ops` + `android-gradle` | planned; no adapter capability yet |
+| `wsl-python` | Execute an existing implementation/acceptance contract | `development-delegation` | active |
 | `wsl-python` | Evidence-first external investigation | `research-investigation` + selected profile | active |
 | `wsl-python` | WSL/Python runtime operations | `runtime-ops` + `wsl-python` | planned; no adapter capability yet |
 

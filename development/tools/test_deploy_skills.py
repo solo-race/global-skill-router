@@ -399,9 +399,13 @@ def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_pa
             )
         )
         names = [item["name"] for item in shard["skills"]]
+        assert "development-delegation" in names
         if scenario != "win-access-vba":
             assert "runtime-ops" not in names
-            assert names == (["research-investigation"] if scenario == "wsl-python" else [])
+            expected = ["development-delegation"]
+            if scenario == "wsl-python":
+                expected.append("research-investigation")
+            assert names == expected
             continue
         runtime_entry = next(
             item for item in shard["skills"] if item["name"] == "runtime-ops"
