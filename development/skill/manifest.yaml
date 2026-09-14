@@ -32,6 +32,7 @@ skills:
     path: development/skill/research-investigation
     status: active
     deployment_role: module
+    routing_scope: scenario
     scenarios: [wsl-python]
     deps: []
     composed_of: []
@@ -42,6 +43,7 @@ skills:
     path: development/skill/runtime-ops
     status: active
     deployment_role: module
+    routing_scope: scenario
     scenarios: [win-access-vba]
     deps: []
     composed_of: []
@@ -52,7 +54,9 @@ skills:
     path: development/skill/development-delegation
     status: active
     deployment_role: module
-    scenarios: [win-access-vba, win-android, wsl-python]
+    routing_scope: global
+    routing_selector: Existing implementation plan or acceptance contract requiring delegated implementation and validation.
+    scenarios: []
     deps: []
     composed_of: []
     entrypoint: true

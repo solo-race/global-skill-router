@@ -87,14 +87,21 @@ For heavier skills, extend toward the five-layer stack reviewed in `architecture
   Existing `agents/`, `references/`, `profiles/`, `adapters/`, and `scripts/` directories
   travel with their owning Skill. `development/tools/`, plans, and read-only source references
   never enter the payload.
+- **Routing rule:** active modules default to `routing_scope: scenario` and are projected only
+  into their declared `scenarios[]` shards. A cross-scenario task-intent module may instead
+  declare `routing_scope: global`, a short `routing_selector`, and `scenarios: []`; active global
+  routes are embedded in the route index and are checked before any scenario shard. A global hit
+  therefore costs the index read plus the selected module read, not three scenario-shard reads.
 - **Owner rule:** adapters and profiles are owner-contained extensions. An adapter is deployed
   with its owner Skill and is not installed as a separate top-level Skill.
 - **Dependency rule:** before deploying an active Skill, its `deps[]` and active
   `composed_of[]` targets must be available in the target environment as represented by the
   manifest.
-- **Path rule:** Skill files use paths relative to their own Skill root. The eventual target
-  may be a user-level or project-level skill root; the Skill must not assume `.codex/skills/`
-  or `.agents/skills/`.
+- **Path rule:** Skill files use paths relative to their own Skill root. At runtime the router
+  root is the directory containing the loaded `global-skill-router/SKILL.md`; `_platform/...`
+  and `library/...` paths resolve only from that root, never from process CWD or a source-repo
+  root. The eventual target may be a user-level or project-level skill root; the Skill must not
+  assume `.codex/skills/` or `.agents/skills/`.
 - **Self-containment:** an active Skill must retain all runtime decision-making material inside
   its own root. Optional `sources[]` references may be absent after deployment.
 - **Planned exclusion:** planned Skills and adapters are registration records, not runtime

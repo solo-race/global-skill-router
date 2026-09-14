@@ -336,6 +336,8 @@ def test_route_index_paths_selectors_and_self_validation(tmp_path):
     index = yaml.safe_load(index_path.read_text(encoding="utf-8"))
 
     assert deploy_skills._validate_route_index(index, payload["payload_root"])
+    assert index["schema_version"] == 2
+    assert index["global_routes"] == []
     assert {item["name"] for item in index["scenarios"]} == set(SCENARIOS)
     for item in index["scenarios"]:
         assert item["shard"] == f"_platform/routes/{item['name']}.yaml"
@@ -386,7 +388,19 @@ def test_planned_adapter_file_is_excluded_from_assembled_payload(tmp_path):
 def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_path):
     payload = _build(deploy_skills.DEFAULT_MANIFEST, tmp_path / "staging")
     runtime_ops = payload["payload_root"] / "library" / "runtime-ops"
+    index = yaml.safe_load(
+        (payload["payload_root"] / "_platform" / "routes" / "index.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
 
+    assert index["global_routes"] == [
+        {
+            "name": "development-delegation",
+            "selector": "Existing implementation plan or acceptance contract requiring delegated implementation and validation.",
+            "skill_path": "library/development-delegation/SKILL.md",
+        }
+    ]
     assert not (runtime_ops / "adapters" / "gpt-repo-local.md").exists()
     assert (runtime_ops / "adapters" / "vba-office.md").is_file()
     for planned_name in ("sql-server.md", "android-gradle.md", "wsl-python.md"):
@@ -399,10 +413,10 @@ def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_pa
             )
         )
         names = [item["name"] for item in shard["skills"]]
-        assert "development-delegation" in names
+        assert "development-delegation" not in names
         if scenario != "win-access-vba":
             assert "runtime-ops" not in names
-            expected = ["development-delegation"]
+            expected = []
             if scenario == "wsl-python":
                 expected.append("research-investigation")
             assert names == expected
@@ -418,6 +432,31 @@ def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_pa
     target_root = tmp_path / "skills"
     deploy_skills.apply_payload(target_root, payload)
     assert sorted(path.name for path in target_root.iterdir()) == ["global-skill-router"]
+
+
+def test_route_index_rejects_invalid_global_skill_path(tmp_path):
+    payload = _build(deploy_skills.DEFAULT_MANIFEST, tmp_path / "staging")
+    index = yaml.safe_load(
+        (payload["payload_root"] / "_platform" / "routes" / "index.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    index["global_routes"][0]["skill_path"] = "../development-delegation/SKILL.md"
+    with pytest.raises(deploy_skills.DeploymentError, match="global route skill path"):
+        deploy_skills._validate_route_index(index, payload["payload_root"])
+
+
+def test_legacy_v1_route_index_remains_verifiable_for_recovery(tmp_path):
+    manifest, _ = _fixture_repo(tmp_path)
+    payload = _build(manifest, tmp_path / "staging")
+    index = yaml.safe_load(
+        (payload["payload_root"] / "_platform" / "routes" / "index.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    index["schema_version"] = 1
+    index.pop("global_routes")
+    assert deploy_skills._validate_route_index(index, payload["payload_root"])
 
 
 def test_adapter_canonical_path_gate_blocks_deploy(tmp_path):

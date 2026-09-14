@@ -44,7 +44,8 @@ SCENARIO_SELECTORS = {
     "win-android": "windows android build/runtime",
     "wsl-python": "wsl python evidence/investigation",
 }
-ROUTE_INDEX_SCHEMA_VERSION = 1
+ROUTE_INDEX_SCHEMA_VERSION = 2
+LEGACY_ROUTE_INDEX_SCHEMA_VERSION = 1
 
 
 class DeploymentError(RuntimeError):
@@ -104,13 +105,58 @@ def _route_path(value: object, label: str) -> PurePosixPath:
     return path
 
 
-def _validate_route_index(index: object, router_root: Path) -> set[str]:
-    """Validate the generated index and every registered shard on disk."""
+def _library_skill_path(value: object, label: str) -> PurePosixPath:
+    """Validate a router-relative direct library SKILL.md path."""
 
-    if not isinstance(index, dict) or set(index) != {"schema_version", "scenarios"}:
-        raise DeploymentError("route index must contain only schema_version and scenarios")
-    if index.get("schema_version") != ROUTE_INDEX_SCHEMA_VERSION:
+    if not isinstance(value, str) or not value.strip():
+        raise DeploymentError(f"{label} must be a non-empty POSIX path")
+    if "\\" in value or value.startswith("/") or len(value) >= 2 and value[1] == ":":
+        raise DeploymentError(f"{label} must be router-relative POSIX path: {value!r}")
+    path = PurePosixPath(value)
+    if path.is_absolute() or ".." in path.parts or "." in path.parts:
+        raise DeploymentError(f"{label} must not be absolute or contain dot segments: {value!r}")
+    if len(path.parts) != 3 or path.parts[0] != "library" or path.parts[2] != "SKILL.md":
+        raise DeploymentError(f"{label} must equal library/<module>/SKILL.md: {value!r}")
+    return path
+
+
+def _validate_route_index(index: object, router_root: Path) -> set[str]:
+    """Validate route-index v2, accepting v1 only for installed-payload recovery."""
+
+    if not isinstance(index, dict):
+        raise DeploymentError("route index must be a mapping")
+    schema_version = index.get("schema_version")
+    if schema_version == LEGACY_ROUTE_INDEX_SCHEMA_VERSION:
+        if set(index) != {"schema_version", "scenarios"}:
+            raise DeploymentError("legacy route index must contain only schema_version and scenarios")
+        global_routes = []
+    elif schema_version == ROUTE_INDEX_SCHEMA_VERSION:
+        if set(index) != {"schema_version", "global_routes", "scenarios"}:
+            raise DeploymentError("route index must contain only schema_version, global_routes, and scenarios")
+        global_routes = index.get("global_routes")
+        if not isinstance(global_routes, list):
+            raise DeploymentError("route index global_routes must be a list")
+    else:
         raise DeploymentError("route index schema_version is invalid")
+
+    global_names: set[str] = set()
+    for item in global_routes:
+        if not isinstance(item, dict) or set(item) != {"name", "selector", "skill_path"}:
+            raise DeploymentError("global route entries must contain name, selector, skill_path")
+        name = item.get("name")
+        if not isinstance(name, str) or not name.strip() or name in global_names:
+            raise DeploymentError(f"route index has invalid or duplicate global route: {name!r}")
+        selector = item.get("selector")
+        if not isinstance(selector, str) or not selector.strip() or len(selector) > 180:
+            raise DeploymentError(f"global route selector must be short and non-empty: {name!r}")
+        skill_path = _library_skill_path(item.get("skill_path"), f"global route skill path for {name}")
+        expected = f"library/{name}/SKILL.md"
+        if skill_path.as_posix() != expected:
+            raise DeploymentError(f"global route skill path for {name} must be {expected!r}")
+        if not router_root.joinpath(*skill_path.parts).is_file():
+            raise DeploymentError(f"global route skill path is missing: {skill_path.as_posix()}")
+        global_names.add(name)
+
     scenarios = index.get("scenarios")
     if not isinstance(scenarios, list) or len(scenarios) != len(SCENARIOS):
         raise DeploymentError("route index scenarios must contain the fixed scenario vocabulary")
@@ -139,6 +185,20 @@ def _validate_route_index(index: object, router_root: Path) -> set[str]:
         shard = _read_yaml(shard_path, path.as_posix())
         if not isinstance(shard, dict) or shard.get("scenario") != name or not isinstance(shard.get("skills"), list):
             raise DeploymentError(f"route shard structure is invalid: {path.as_posix()}")
+        for candidate in shard["skills"]:
+            if not isinstance(candidate, dict):
+                raise DeploymentError(f"route candidate is invalid: {path.as_posix()}")
+            candidate_name = candidate.get("name")
+            if candidate_name in global_names:
+                raise DeploymentError(f"global route duplicated in scenario shard: {candidate_name!r}")
+            skill_path = _library_skill_path(
+                candidate.get("skill_path"),
+                f"route skill path for {candidate_name}",
+            )
+            if not router_root.joinpath(*skill_path.parts).is_file():
+                raise DeploymentError(f"route skill path is missing: {skill_path.as_posix()}")
+            if candidate.get("status") != "active":
+                raise DeploymentError(f"planned route candidate is executable: {candidate_name}")
 
     if seen_names != set(SCENARIOS):
         raise DeploymentError("route index scenarios do not match the fixed vocabulary")
@@ -253,8 +313,23 @@ def _copy_module_source(source: Path, destination: Path, planned_files: set[str]
 def _route_payloads(data: dict, root: Path, router_root: Path) -> tuple[dict, dict[str, str]]:
     modules = _active_modules(data)
     module_by_name = {entry.get("name"): entry for entry in modules}
+    global_routes = []
+    for name in sorted(module_by_name):
+        entry = module_by_name[name]
+        if entry.get("routing_scope", "scenario") != "global":
+            continue
+        if entry.get("entrypoint") is not True:
+            continue
+        global_routes.append(
+            {
+                "name": name,
+                "selector": str(entry.get("routing_selector", "")).strip(),
+                "skill_path": f"library/{name}/SKILL.md",
+            }
+        )
     index = {
         "schema_version": ROUTE_INDEX_SCHEMA_VERSION,
+        "global_routes": global_routes,
         "scenarios": [
             {
                 "name": scenario,
@@ -272,6 +347,8 @@ def _route_payloads(data: dict, root: Path, router_root: Path) -> tuple[dict, di
         candidates = []
         for name in sorted(module_by_name):
             entry = module_by_name[name]
+            if entry.get("routing_scope", "scenario") == "global":
+                continue
             if scenario not in (entry.get("scenarios") or []):
                 continue
             if entry.get("entrypoint") is not True:

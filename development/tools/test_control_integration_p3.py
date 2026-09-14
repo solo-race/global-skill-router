@@ -176,11 +176,13 @@ def test_runtime_adapter_contract_reuse_is_scoped_and_invalidated():
         assert requirement in runtime
 
     router = (skill_root / "global-skill-router" / "SKILL.md").read_text(encoding="utf-8")
-    assert "reusing it while reliably" in router
-    assert "load/reuse rules for profiles, adapters, and references" in router
-    assert "Read only the shard needed" in router
-    assert "Choose the smallest matching module set" in router
-    assert "Do not scan `library/`" in router
+    assert "currently loaded `SKILL.md`" in router
+    assert "never\nagainst the process current working directory" in router
+    assert "Evaluate `global_routes` first" in router
+    assert "read zero scenario shards" in router
+    assert "Never read a second scenario shard" in router
+    assert "smallest matching\n   module set" in router
+    assert "Never scan `library/`" in router
 
 
 def test_real_manifest_v3_is_green_and_routes_are_explicit():
@@ -188,13 +190,14 @@ def test_real_manifest_v3_is_green_and_routes_are_explicit():
     assert report["ok"] is True, report["errors"]
     assert report["sources_checked"] == 4
     assert report["adapters_checked"] == 4
-    assert report["routes"]["win-access-vba"]["skills"] == [
+    assert report["routes"]["global"]["skills"] == [
         {"name": "development-delegation", "status": "active"},
+    ]
+    assert report["routes"]["win-access-vba"]["skills"] == [
         {"name": "global-skill-router", "status": "active"},
         {"name": "runtime-ops", "status": "active"}
     ]
     assert report["routes"]["win-android"]["skills"] == [
-        {"name": "development-delegation", "status": "active"},
         {"name": "global-skill-router", "status": "active"},
     ]
     assert report["routes"]["win-access-vba"]["adapters"] == [
@@ -205,7 +208,6 @@ def test_real_manifest_v3_is_green_and_routes_are_explicit():
         {"name": "android-gradle", "owner_skill": "runtime-ops", "status": "planned"},
     ]
     assert report["routes"]["wsl-python"]["skills"] == [
-        {"name": "development-delegation", "status": "active"},
         {"name": "global-skill-router", "status": "active"},
         {"name": "research-investigation", "status": "active"},
     ]

@@ -35,6 +35,7 @@ REQUIRED_FIELDS = ("name", "path", "status", "version", "description")
 LIST_FIELDS = ("scenarios", "deps", "composed_of")
 VALID_STATUSES = frozenset({"planned", "active"})
 VALID_DEPLOYMENT_ROLES = frozenset({"router", "module"})
+VALID_ROUTING_SCOPES = frozenset({"scenario", "global"})
 VALID_SOURCE_KINDS = frozenset({"upstream-snapshot", "local-reference"})
 VALID_SCENARIOS = frozenset({"win-access-vba", "win-android", "wsl-python"})
 VALID_VERIFICATION_KINDS = frozenset({"linear", "partial_order", "independent_checks"})
@@ -746,6 +747,64 @@ def _check_skill_entry_v2(entry, index, root, errors):
     for scenario in lists["scenarios"]:
         if scenario not in VALID_SCENARIOS:
             errors.append(_err("INVALID_SCENARIO", name, f"scenario '{scenario}' not in {sorted(VALID_SCENARIOS)}"))
+
+    routing_scope = entry.get("routing_scope", "scenario")
+    routing_selector = entry.get("routing_selector")
+    if deployment_role == "router":
+        if "routing_scope" in entry or "routing_selector" in entry:
+            errors.append(
+                _err(
+                    "ROUTER_ROUTING_FIELDS_INVALID",
+                    name,
+                    "router entries must not declare module routing_scope or routing_selector",
+                )
+            )
+    elif routing_scope not in VALID_ROUTING_SCOPES:
+        errors.append(
+            _err(
+                "ROUTING_SCOPE_INVALID",
+                name,
+                f"routing_scope must be one of {sorted(VALID_ROUTING_SCOPES)}, got {routing_scope!r}",
+            )
+        )
+    elif routing_scope == "global":
+        if lists["scenarios"]:
+            errors.append(
+                _err(
+                    "GLOBAL_ROUTE_SCENARIOS_INVALID",
+                    name,
+                    "global-routed modules must declare scenarios: [] to avoid duplicate scenario routes",
+                )
+            )
+        if entry.get("entrypoint") is not True:
+            errors.append(
+                _err(
+                    "GLOBAL_ROUTE_ENTRYPOINT_INVALID",
+                    name,
+                    "global-routed modules must be entrypoint=true",
+                )
+            )
+        if (
+            not isinstance(routing_selector, str)
+            or not routing_selector.strip()
+            or len(routing_selector.strip()) > 180
+        ):
+            errors.append(
+                _err(
+                    "GLOBAL_ROUTE_SELECTOR_INVALID",
+                    name,
+                    "global-routed modules must declare a non-empty routing_selector of at most 180 characters",
+                )
+            )
+    elif routing_selector is not None:
+        errors.append(
+            _err(
+                "SCENARIO_ROUTE_SELECTOR_INVALID",
+                name,
+                "scenario-routed modules must not declare routing_selector",
+            )
+        )
+
     if not isinstance(entry.get("entrypoint"), bool):
         errors.append(_err("ENTRYPOINT_FLAG_INVALID", name, "entrypoint must be a boolean"))
 
@@ -779,8 +838,10 @@ def _check_skill_entry_v2(entry, index, root, errors):
             errors.append(_err("ACTIVE_SKILL_MD_MISSING", name, f"missing SKILL.md under: {rel_path}"))
         else:
             errors.extend(_frontmatter_errors(skill_dir, name, PurePosixPath(rel_path).name))
-        if not lists["scenarios"]:
-            errors.append(_err("ACTIVE_EMPTY_SCENARIOS", name, "active entries must declare at least one scenario"))
+        if not lists["scenarios"] and not (
+            deployment_role == "module" and routing_scope == "global"
+        ):
+            errors.append(_err("ACTIVE_EMPTY_SCENARIOS", name, "active entries must declare at least one scenario unless routing_scope is global"))
 
     if isinstance(entry.get("entrypoint"), bool):
         errors.extend(_entrypoint_errors(skill_dir, name, status, entry.get("entrypoint")))
@@ -943,12 +1004,23 @@ def _deployment_errors(entries, errors):
 
 
 def _build_routes(skills, adapters):
-    routes = {
-        scenario: {"skills": [], "adapters": []}
-        for scenario in sorted(VALID_SCENARIOS)
-    }
+    routes = {"global": {"skills": [], "adapters": []}}
+    routes.update(
+        {
+            scenario: {"skills": [], "adapters": []}
+            for scenario in sorted(VALID_SCENARIOS)
+        }
+    )
     for entry in skills:
         if not isinstance(entry, dict):
+            continue
+        if (
+            entry.get("deployment_role") == "module"
+            and entry.get("routing_scope", "scenario") == "global"
+        ):
+            routes["global"]["skills"].append(
+                {"name": entry.get("name"), "status": entry.get("status")}
+            )
             continue
         for scenario in entry.get("scenarios", []) if isinstance(entry.get("scenarios"), list) else []:
             if scenario in routes:
@@ -974,6 +1046,8 @@ def _build_routes(skills, adapters):
 def _route_errors(routes):
     errors = []
     for scenario, route in routes.items():
+        if scenario == "global":
+            continue
         if not route["skills"] and not route["adapters"]:
             errors.append(_err("SCENARIO_UNROUTED", scenario, f"scenario has no registered skill or adapter: {scenario}"))
     return errors

@@ -226,6 +226,75 @@ def test_active_empty_scenarios_rejected(tmp_path):
     assert "ACTIVE_EMPTY_SCENARIOS" in _codes(report)
 
 
+def test_active_global_route_allows_empty_scenarios_with_selector(tmp_path):
+    entry = _entry(
+        "global-worker",
+        "development/skill/global-worker",
+        "active",
+        scenarios=[],
+        routing_scope="global",
+        routing_selector="Existing accepted contract requiring delegated implementation.",
+        entrypoint=True,
+    )
+    skill_dir = tmp_path / "development" / "skill" / "global-worker"
+    _write_skill_md(skill_dir, name="global-worker")
+    metadata_dir = skill_dir / "agents"
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+    (metadata_dir / "openai.yaml").write_text(
+        "interface:\n"
+        "  display_name: Global Worker\n"
+        "  short_description: Global route fixture.\n"
+        "  default_prompt: Load $global-worker.\n",
+        encoding="utf-8",
+    )
+    report = _run(tmp_path, [entry])
+    assert report["ok"] is True, report["errors"]
+    assert report["routes"]["global"]["skills"] == [
+        {"name": "global-worker", "status": "active"}
+    ]
+    assert all(
+        item["name"] != "global-worker"
+        for scenario in ("win-access-vba", "win-android", "wsl-python")
+        for item in report["routes"][scenario]["skills"]
+    )
+
+
+def test_global_route_rejects_scenarios_and_missing_selector(tmp_path):
+    report = _run(
+        tmp_path,
+        [
+            _entry(
+                "global-worker",
+                "development/skill/global-worker",
+                "planned",
+                scenarios=["wsl-python"],
+                routing_scope="global",
+                entrypoint=True,
+            )
+        ],
+    )
+    codes = _codes(report)
+    assert "GLOBAL_ROUTE_SCENARIOS_INVALID" in codes
+    assert "GLOBAL_ROUTE_SELECTOR_INVALID" in codes
+
+
+def test_scenario_route_rejects_global_selector(tmp_path):
+    report = _run(
+        tmp_path,
+        [
+            _entry(
+                "scenario-worker",
+                "development/skill/scenario-worker",
+                "planned",
+                scenarios=["wsl-python"],
+                routing_scope="scenario",
+                routing_selector="Dead selector must not be accepted.",
+            )
+        ],
+    )
+    assert "SCENARIO_ROUTE_SELECTOR_INVALID" in _codes(report)
+
+
 def test_external_missing_path_detected(tmp_path):
     report = _run(
         tmp_path,
