@@ -1,0 +1,6 @@
+scenario: wsl-python
+skills:
+- name: research-investigation
+  description: Reconstruct reviewable, evidence-bound claims from accessible sources.
+  skill_path: library/research-investigation/SKILL.md
+  status: active

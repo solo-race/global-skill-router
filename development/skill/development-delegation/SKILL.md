@@ -1,82 +1,78 @@
 ---
 name: development-delegation
-description: Use when a repository already has a phase plan or acceptance contract and implementation should be delegated across a supervisor, read-only scouts, a bounded implementer, external validation, and an upstream final reviewer.
+description: Route repository work through planning or delegated implementation with session-level human supervision and optional independent review. Use when repository work needs a detailed phase plan or execution through bounded delegation and evidence gates.
 ---
 
 # Development Delegation Loop
 
-Load this skill once in the main supervisor. Give workers only the relevant contract fragment and role-specific return format.
+Load this skill once in the main supervisor. The supervisor owns routing and state; workers receive only bounded role-specific context.
 
-## Purpose
+## Mandatory session gate
 
-Execute an existing phase contract with minimal duplicated context. Planning and final cross-phase review remain upstream. If no usable contract exists, escalate instead of inventing one.
+On first activation, if supervision has not already been explicitly declared for this session, ask exactly one user decision before starting work:
 
-Repository observations should come from current HEAD and direct evidence, not stale summaries or prior conversation.
+`Session supervision: is a human supervisor actively present for this session? [Yes/No]`
+
+Set `human_supervisor=true` for Yes and `false` for No. Do not infer supervision from time of day, user activity, or prior sessions. Keep the value stable for the session unless the user changes it.
+
+## Route selection
+
+After the session gate, inspect current HEAD plus the minimum project/plan documents needed to classify the task.
+
+Enter the **planning loop** when either condition is true:
+- the user explicitly asks to plan, re-plan, decompose, or phase the work;
+- the current phase has no usable detailed phase plan.
+
+A usable detailed phase plan names the current phase objective, bounded implementation units, dependencies/order, material scope and constraints, validation for each unit, and phase exit criteria. A roadmap or phase list alone is not sufficient.
+
+Otherwise enter the **implementation loop**.
+
+After planning is sealed, return to route selection; normally the new current-phase plan then enters implementation.
+
+## Supervision policy
+
+`human_supervisor=true` -> supervised execution. Run the implementation loop without automatic independent review. The human remains the live escalation/review authority.
+
+`human_supervisor=false` -> unattended execution. Run implementation plus the independent review module at each phase-close boundary. A phase does not advance until review returns `PASS`. `REVISE` findings are converted into bounded repair work, revalidated, and reviewed again. Stop on `BLOCK`, an unresolved planning/architecture decision, or a deployment-defined review budget.
+
+The same review module may gate a newly created plan in unattended planning. In supervised planning, do not add an automatic reviewer unless the user asks for one.
 
 ## Roles
 
-- **Upstream planner / final reviewer**: owns phase decomposition, acceptance contracts, architecture decisions, and final audit.
-- **Main supervisor**: selects work, delegates inspection/implementation/validation, compares evidence with acceptance criteria, persists state, and routes failures.
-- **Scout**: read-only inspection. Returns observed facts with exact sources and keeps inference separate.
-- **Implementer**: makes only the bounded change in the implementation brief. If the brief requires wider scope, return `BLOCKED`.
-- **Test executor**: runs requested checks and returns reproducible evidence without editing code.
+- **Main supervisor**: owns routing, session mode, delegation, evidence comparison, persisted state, and retry/review transitions.
+- **Scout**: read-only repository/document inspection; returns source-backed facts and separates inference.
+- **Planner**: reasons over a prepared planning packet and produces or revises the project/phase plan; it does not perform broad repository discovery itself.
+- **Implementer**: changes only the bounded implementation brief.
+- **Test executor**: runs requested validation and reports reproducible evidence without repairing failures.
+- **Reviewer**: independent read-only audit of a plan or mechanically completed phase; returns `PASS`, `REVISE`, or `BLOCK` and does not implement fixes.
 
-## Loop
+## Shared boundaries
 
-1. Load the active phase contract and project status.
-2. Select one acceptance unit with satisfied dependencies.
-3. Delegate only the repository/document/code questions needed for that unit; parallelize independent questions.
-4. Build the bounded implementation brief from scout evidence.
-5. Send code changes to the implementer.
-6. Delegate build/test/runtime/manual validation.
-7. On failure, return evidence to the implementer; re-scout only when evidence became stale or incomplete.
-8. Accept only when every criterion has direct evidence. Persist state, then advance or stop in a defined state.
-9. When the phase closes, prepare the final review package and report `READY_FOR_FINAL_REVIEW`.
-
-## Boundaries
-
-- Keep work inside the active contract and allowed scope; unrelated refactors or architecture changes require escalation.
-- The supervisor coordinates and accepts; it is not the fallback implementer after worker failure.
-- Scouts and test executors do not modify repository files.
-- Evidence should name paths, symbols, diffs, commands, test names, exit codes, or artifacts where applicable.
-- A material repository-state change invalidates affected evidence.
-- Reuse a stable implementation brief across retries unless the contract or evidence changed.
+- Prefer current HEAD and direct evidence over stale summaries or prior conversation.
+- Keep repository discovery with scouts; expensive reasoning roles should receive compressed, source-backed packets.
+- The supervisor coordinates and accepts; it is not the fallback implementer or planner.
+- Material repository-state changes invalidate affected evidence.
 - Record only work actually performed and validation actually observed.
-
-## Escalate when
-
-- the contract is missing, stale, contradictory, or materially ambiguous;
-- required implementation crosses the permitted scope or needs an architecture decision;
-- targeted verification cannot resolve conflicting evidence;
-- required validation cannot run;
-- repeated attempts fail for the same underlying reason;
-- the unit introduces an uncovered irreversible, migration, permission, or data-loss decision;
-- completing the unit would invalidate a later phase contract.
+- Architecture changes, irreversible/migration/permission/data-loss decisions, or scope expansion require explicit plan-level authority.
 
 ## States
 
-Each acceptance unit ends as one of:
+Implementation units end as `ACCEPTED`, `RETRY_IMPLEMENTATION`, `REVERIFY`, `BLOCKED`, or `ESCALATE_PLAN`.
 
-- `ACCEPTED` — all criteria have evidence.
-- `RETRY_IMPLEMENTATION` — code failed but contract/evidence remain valid.
-- `REVERIFY` — evidence is stale, incomplete, or conflicting.
-- `BLOCKED` — mechanical execution cannot continue.
-- `ESCALATE_PLAN` — upstream planning or architecture is required.
+A mechanically complete phase is `READY_FOR_REVIEW` when unattended and becomes `PHASE_ACCEPTED` only after reviewer `PASS`. Under human supervision, mechanical acceptance may directly produce `PHASE_ACCEPTED` unless the human requests review.
 
-A completed phase remains `READY_FOR_FINAL_REVIEW` until upstream review.
+Planning ends as `PLAN_SEALED`, `NEED_EVIDENCE`, `REVISE_PLAN`, or `BLOCKED`.
 
-## Prompt delta
+## Loop contracts
 
-After this skill and the active repository contract are loaded, ordinary task prompts should state only what differs from the defaults:
+- [Implementation loop](loops/implementation.md)
+- [Planning loop](loops/planning.md)
+- [Independent review module](modules/review.md)
 
-```text
-<mode>: <objective>
-scope=<optional narrower scope>
-exceptions=<optional task-specific constraint>
-```
-
-## References
+## Handoff templates
 
 - [Implementation brief](references/implementation-brief.md)
 - [Evidence report](references/evidence-report.md)
-- [Final review package](references/final-review-package.md)
+- [Planning packet](references/planning-packet.md)
+- [Phase plan](references/phase-plan.md)
+- [Review package](references/review-package.md)

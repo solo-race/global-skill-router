@@ -1,0 +1,71 @@
+{
+  "deployment_schema_version": 1,
+  "manifest": {
+    "schema_version": 3,
+    "sha256": "a054764efd181be7073a53d4365578286d70a270420abd1f49081d70ec68dc99"
+  },
+  "modules": [
+    {
+      "name": "development-delegation",
+      "version": "0.1.0"
+    },
+    {
+      "name": "research-investigation",
+      "version": "0.1.0"
+    },
+    {
+      "name": "runtime-ops",
+      "version": "0.1.0"
+    }
+  ],
+  "payload_files": {
+    "SKILL.md": "445e9d522a709c5f53045f67c45f67fcd8a781c1e5b77b8e5dcd0b0f9d0a770b",
+    "_platform/routes/index.yaml": "87cec9e681327a9bd0962e50e9304de8a35f96dea78ff83faf49390c642a66ba",
+    "_platform/routes/win-access-vba.yaml": "65bdbe6f628b90a70e0474941c68d8d4bdbd9a169228281e71ff9b969eac1196",
+    "_platform/routes/win-android.yaml": "3853eef2a5f86133da703001922a40f814078527bace40e8488e9ed82c32b288",
+    "_platform/routes/wsl-python.yaml": "8b40f97286b7c31a96249eb0fb454b7591916ab121f6ce715eeff8f358dde258",
+    "agents/openai.yaml": "325e5c85e8541af129b69f20882633ffa6b3e3f5d92ca545b448c53bcc590b8d",
+    "library/development-delegation/SKILL.md": "6e9787db6774023af6f0aef7edfa0c04d3dfb7495b4afaf5df612185094c5b59",
+    "library/development-delegation/agents/implementer.toml": "860badbdd9aca848ad1016a5ebcdef98e257abc95291d66f0f020e9af031be84",
+    "library/development-delegation/agents/openai.yaml": "9284843a09ba798343a4513cda8c7d966c262a1a70f0defbdef98b080354997a",
+    "library/development-delegation/agents/planner.toml": "974cf972a98e1b8c40924d939271eb252ef0583991443a874d7cfe3c60aac312",
+    "library/development-delegation/agents/registry.example.toml": "a1b1c25e0c6be5e5b166c5e241791e121ea941466ed00fb33a9bb52df253f5bb",
+    "library/development-delegation/agents/reviewer.toml": "a05c22744a153a89bc0facd8bbb86386ec0380b83f99df556812783a14275122",
+    "library/development-delegation/agents/scout.toml": "35365c79834b265adbcfb09f934538c6eb7440ed49dac9feea0b3a8b74cdb84c",
+    "library/development-delegation/agents/tester.toml": "8ecae54dd6a6284f9e5dbf28e2777f9e31b30bccbe3af24dff4f5f484a4b1c55",
+    "library/development-delegation/loops/implementation.md": "caab22f89a9277933ec54bdd8ec0397432a0b890ab64b8b6f86fcaf11233de7e",
+    "library/development-delegation/loops/planning.md": "c9ffdbfc875539983c41ad913fd45683a379b330432175fb129e6c45028f6b6c",
+    "library/development-delegation/modules/review.md": "60d83f37b37fb409baa03de6fcd5ebcfc5b90c32ecf898d3aea7f8313230b3ac",
+    "library/development-delegation/references/evidence-report.md": "1eb5f5a2712e3b913634771ec1623192c5e1c713dd76eb556916630f05a69c37",
+    "library/development-delegation/references/implementation-brief.md": "435644305fdf09695cc056e5b07a6b7c1a3bc7abf2e2f91396c83a2a3a781130",
+    "library/development-delegation/references/phase-plan.md": "abba2e08a2f9ccccbe45814be74f1f7de19199282eccd26e5acc987865cd47cc",
+    "library/development-delegation/references/planning-packet.md": "d5669a2233327e7544ccac40da692ee5e8d5764d310282987d5b789ef5962d19",
+    "library/development-delegation/references/review-package.md": "c09112c63842308f3c0a30a1581e18f69ed638030b7e25f3ff9446e3572d91f9",
+    "library/research-investigation/SKILL.md": "4d8f18f03b62bd8571222129a33e78db3021b38a5323cfc28c6c206527bf2aa2",
+    "library/research-investigation/agents/openai.yaml": "581641588816d71631255b3faa5c276eab902cad4948c8052535e3efc46b65e6",
+    "library/research-investigation/profiles/recycling-company.yaml": "b86a21dcb9784387d5c8bc0c27706a934c7b4f6e96776b705715729b64295249",
+    "library/research-investigation/references/evidence-rules.md": "0ee5c677d1e4e209254808b640681473d7fefed25d059bd1faf67107025bc4b4",
+    "library/research-investigation/references/evidence-taxonomy.md": "df2ef96b670a6cc521b49bbc04a814d5835a9b0253a4596a55ca72eb8ca8504b",
+    "library/research-investigation/references/output-schema.md": "fb4bc4688d12d846fdb9883a6c54846b0ccd4e5010a20f283f10fadeff2c2e22",
+    "library/research-investigation/references/profile-contract.md": "5cc12311d1d041ef5b6bd46702d65b26b5c3ffbcf795afb8e706323cf523981b",
+    "library/runtime-ops/SKILL.md": "942423bef530218a6c1ec73bf5de9976d5a211e1b7c1cae6a07ae816ee9688d5",
+    "library/runtime-ops/adapters/vba-office.md": "b31966242f1817b5ceec0c185f1452ccce4889af8ed8d25c39bac03bc1b26cb7",
+    "library/runtime-ops/agents/openai.yaml": "a7f7c5846f10cc882d00472bdf417e92db4918dd8b268ab330e357fa178e91f2",
+    "library/runtime-ops/references/contract-template.md": "a5dd66dd63cbad3710bca5c92bd08f9a8c3468a4a6582155c0cfebc04e832462",
+    "library/runtime-ops/references/evidence-types.md": "65322a9bfb2296975d780444cde9b312d2dd0ceb9f5c37ddb21d9f3861cab859",
+    "library/runtime-ops/references/verification-ladder.md": "a32546e70eb409b2cf409bf4f33b94fa3ebe5d1981687ef52e557730ede7c2e2"
+  },
+  "router": {
+    "name": "global-skill-router",
+    "version": "0.1.0"
+  },
+  "routes": {
+    "index": "_platform/routes/index.yaml",
+    "index_sha256": "87cec9e681327a9bd0962e50e9304de8a35f96dea78ff83faf49390c642a66ba",
+    "shards": {
+      "_platform/routes/win-access-vba.yaml": "65bdbe6f628b90a70e0474941c68d8d4bdbd9a169228281e71ff9b969eac1196",
+      "_platform/routes/win-android.yaml": "3853eef2a5f86133da703001922a40f814078527bace40e8488e9ed82c32b288",
+      "_platform/routes/wsl-python.yaml": "8b40f97286b7c31a96249eb0fb454b7591916ab121f6ce715eeff8f358dde258"
+    }
+  }
+}
