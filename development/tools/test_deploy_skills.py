@@ -520,6 +520,59 @@ def test_path_escape_is_rejected(tmp_path):
         _build(manifest, tmp_path / "staging")
 
 
+def test_development_repositories_do_not_change_payload_or_routes(tmp_path):
+    manifest, _ = _fixture_repo(tmp_path)
+    baseline = _build(manifest, tmp_path / "baseline")
+    baseline_root = baseline["payload_root"]
+    expected_files = {
+        path.relative_to(baseline_root): path.read_bytes()
+        for path in baseline_root.rglob("*")
+        if path.is_file()
+        and path.relative_to(baseline_root).as_posix() != "_platform/deployment-state.json"
+    }
+    registry = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    repo_root = manifest.parents[2]
+    for index, name in enumerate(("first-repo", "second-repo"), start=1):
+        source_path = f"development/skill-repos/{name}"
+        source_dir = repo_root / source_path
+        source_dir.mkdir(parents=True)
+        (source_dir / "SKILL.md").write_text("Not a managed Skill.\n", encoding="utf-8")
+        registry["sources"].append({
+            "id": name,
+            "path": source_path,
+            "kind": "development-repository",
+            "required": False,
+            "origin": f"https://example.com/{name}",
+            "pinned_ref": "refs/tags/v1.0.0",
+            "version": "1.0.0",
+            "description": "Independent development source.",
+        })
+        manifest.write_text(yaml.safe_dump(registry, sort_keys=False), encoding="utf-8")
+        payload = _build(manifest, tmp_path / f"with-{index}-sources")
+        payload_root = payload["payload_root"]
+        actual_files = {
+            path.relative_to(payload_root): path.read_bytes()
+            for path in payload_root.rglob("*")
+            if path.is_file()
+            and path.relative_to(payload_root).as_posix() != "_platform/deployment-state.json"
+        }
+        assert actual_files == expected_files
+        # Deployment state changes only in the manifest provenance hash.
+        assert payload["state"]["manifest"]["sha256"] != baseline["state"]["manifest"]["sha256"]
+        expected_state = {
+            **baseline["state"],
+            "manifest": {
+                **baseline["state"]["manifest"],
+                "sha256": payload["state"]["manifest"]["sha256"],
+            },
+        }
+        assert payload["state"] == expected_state
+
+    target_root = tmp_path / "skills"
+    deploy_skills.apply_payload(target_root, payload)
+    assert sorted(path.name for path in target_root.iterdir()) == ["global-skill-router"]
+
+
 def test_growth_keeps_one_top_level_router_and_fixed_index(tmp_path):
     small_manifest, _ = _fixture_repo(tmp_path / "small", module_count=2)
     large_manifest, large_names = _fixture_repo(tmp_path / "large", module_count=55)

@@ -21,9 +21,11 @@ sources:
     description: Read-only source skill used to derive runtime-ops and vba-office.
 
   - id: development-delegation-loop-reference
-    path: development/skill/Development-delegation-loop
-    kind: local-reference
+    path: development/skill-repos/development-delegation-loop-repo
+    kind: development-repository
     required: false
+    origin: https://github.com/solo-race/development-delegation-loop-repo
+    pinned_ref: b52661368e79d296fc9a5ade96798223bd1782f0
     version: "2026-09-14"
     description: Local source repository for the managed development-delegation skill.
 

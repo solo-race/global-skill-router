@@ -15,7 +15,7 @@ There is no application source or build system here. Deliverables are Markdown s
 Two-layer design:
 
 1. **Reference layer** — `references/`: three skill collections copied/built as analysis input. Read-only; do not modify.
-2. **Development layer** — `development/skill/` (rebuild target, mirrors reference layout) and `development/docs/` (project docs incl. `architecture-ref/`).
+2. **Development layer** — `development/skill/` (managed Skills and manifest), `development/skill-repos/` (independent Skill development repositories), and `development/docs/` (project docs incl. `architecture-ref/`).
 
 Intra-module data flow (SpineCodex pattern): `SKILL.md` instructs the agent → agent invokes `scripts/<name>.py` → script shells out to the `gh` CLI via `subprocess.run` → emits JSON (or JSONL in watch mode) on stdout → agent interprets output against rules in `references/*.md`.
 
@@ -38,6 +38,7 @@ For heavier skills, extend toward the five-layer stack reviewed in `architecture
 - `references/customer-research-skills/recycling-company-investigation/` — self-built methodology-type skill (three-layer lifecycle bucketing).
 - `references/access-vba-dev/` — self-built engineering-type skill (five-layer stack + repo meta layer).
 - `development/skill/` — platform skill library: `manifest.yaml` registry plus rebuilt skills (staging target for the rebuild).
+- `development/skill-repos/` — independent Git source libraries, each retaining its own `.git`; local checkouts are ignored by the enclosing repository and registered in the manifest's `sources[]`.
 - `development/docs/` — project documentation (`architecture-ref/` module reviews, this file, [`plans/`](plans/) execution roadmap, and the derived [`scenario-routing.md`](scenario-routing.md)).
 - `.github/`, `.codex/` — exist but empty; purpose not yet defined.
 
@@ -81,6 +82,12 @@ For heavier skills, extend toward the five-layer stack reviewed in `architecture
 - **Source of truth:** `development/skill/<name>/` is the source root for a managed Skill. Only
   entries whose `skills[].status` is `active` in `development/skill/manifest.yaml` are eligible
   for deployment. The manifest must pass `validate_skills.py` before a payload is built.
+- **Independent source libraries:** register each repository in `sources[]` with
+  `kind: development-repository`, a repo-relative POSIX `path` below
+  `development/skill-repos/`, its canonical `origin`, a non-empty `pinned_ref`, and
+  `required: false`. The validator accepts absent optional checkouts and validates
+  managed Skills under `development/skill/` separately. Source registration neither
+  activates a Skill nor adds source-repository files or routes to the deployed payload.
 - **Routed payload boundary:** `deploy_skills.py` installs one managed top-level directory,
   `global-skill-router/`. The router source is copied to the payload root; active
   `deployment_role: module` Skills are copied below `global-skill-router/library/<name>/`.

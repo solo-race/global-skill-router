@@ -19,5 +19,6 @@ __pycache__/
 ## Temp cache
 .tmp/
 
-## Git skill repo
-development/skill/development-delegation-loop-repo
+## Independent skill development repositories
+/development/skill-repos/*
+!/development/skill-repos/.gitkeep

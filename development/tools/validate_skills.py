@@ -2,7 +2,7 @@
 """Skill registry validator for development/skill/manifest.yaml.
 
 Checks the registry against the P4 manifest/control contract. The current
-manifest schema is v3: read-only design sources, deployable skills, and
+manifest schema is v3: non-deployment sources, deployable skills, and
 framework-owned adapters have separate registry sections. Planned entries may
 be forward-registered before their directory exists; active entries must pass
 their complete activation gates.
@@ -36,7 +36,7 @@ LIST_FIELDS = ("scenarios", "deps", "composed_of")
 VALID_STATUSES = frozenset({"planned", "active"})
 VALID_DEPLOYMENT_ROLES = frozenset({"router", "module"})
 VALID_ROUTING_SCOPES = frozenset({"scenario", "global"})
-VALID_SOURCE_KINDS = frozenset({"upstream-snapshot", "local-reference"})
+VALID_SOURCE_KINDS = frozenset({"upstream-snapshot", "local-reference", "development-repository"})
 VALID_SCENARIOS = frozenset({"win-access-vba", "win-android", "wsl-python"})
 VALID_VERIFICATION_KINDS = frozenset({"linear", "partial_order", "independent_checks"})
 VALID_MUTATION_SUPPORT = frozenset({"none", "bounded", "high-impact"})
@@ -557,6 +557,19 @@ def _source_errors(entry, index, root):
     if not isinstance(entry.get("required"), bool):
         errors.append(_err("SOURCE_FIELD_INVALID", label, "source required must be a boolean"))
     path = _safe_repo_path(root, entry.get("path"))
+    if entry.get("kind") == "development-repository":
+        for field in ("origin", "pinned_ref"):
+            if not isinstance(entry.get(field), str) or not entry[field].strip():
+                errors.append(_err("SOURCE_FIELD_INVALID", label, f"development-repository field '{field}' must be a non-empty string"))
+        source_root = (Path(root) / "development" / "skill-repos").resolve()
+        value = entry.get("path")
+        if path is not None and (
+            "\\" in value
+            or ".." in PurePosixPath(value).parts
+            or PurePosixPath(value).parts[:2] != ("development", "skill-repos")
+            or source_root not in path.parents
+        ):
+            errors.append(_err("SOURCE_PATH_INVALID", label, "development-repository path must be a repo-relative POSIX descendant of development/skill-repos/"))
     if path is None:
         errors.append(_err("SOURCE_PATH_INVALID", label, f"source path must stay within repository: {entry.get('path')!r}"))
     elif not path.exists():
@@ -1111,9 +1124,13 @@ def validate(manifest_path):
 
     scan_dir = manifest_path.parent
     if scan_dir.is_dir():
-        registered = {entry.get("path") for entry in entries if isinstance(entry, dict)}
+        registered = {
+            entry["path"] for entry in entries
+            if isinstance(entry, dict) and isinstance(entry.get("path"), str)
+        }
         registered.update(
-            source.get("path") for source in sources if isinstance(source, dict)
+            source["path"] for source in sources
+            if isinstance(source, dict) and isinstance(source.get("path"), str)
         )
         for child in sorted(scan_dir.iterdir()):
             if child.is_dir():

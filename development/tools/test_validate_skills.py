@@ -401,6 +401,94 @@ def test_duplicate_names_rejected(tmp_path):
     assert "DUPLICATE_NAME" in _codes(report)
 
 
+@pytest.mark.parametrize("present", [False, True])
+def test_development_repositories_are_optional_non_skill_sources(tmp_path, present):
+    sources = [
+        _source(
+            name,
+            f"development/skill-repos/{name}",
+            kind="development-repository",
+            origin=f"https://example.com/{name}",
+            pinned_ref="refs/tags/v1.0.0",
+        )
+        for name in ("first-repo", "second-repo")
+    ]
+    if present:
+        for source in sources:
+            _write_skill_md(tmp_path / source["path"], raw="Independent repository, not a managed Skill.\n")
+    baseline = _run(tmp_path, [])
+    report = _run(tmp_path, [], sources=sources)
+    assert report["ok"] is True, report["errors"]
+    assert report["sources_checked"] == 2
+    assert report["skills_checked"] == baseline["skills_checked"]
+    assert report["routes"] == baseline["routes"]
+
+
+@pytest.mark.parametrize("field", ["origin", "pinned_ref"])
+@pytest.mark.parametrize("value", [None, "", "   ", 123])
+def test_development_repository_requires_provenance(tmp_path, field, value):
+    source = _source(
+        "source-repo",
+        "development/skill-repos/source-repo",
+        kind="development-repository",
+        origin="https://example.com/source-repo",
+        pinned_ref="main",
+    )
+    if value is None:
+        source.pop(field)
+    else:
+        source[field] = value
+    report = _run(tmp_path, [], sources=[source])
+    assert any(
+        error["code"] == "SOURCE_FIELD_INVALID" and field in error["message"]
+        for error in report["errors"]
+    )
+
+
+@pytest.mark.parametrize("path", [
+    "development/skill/source-repo",
+    "references/source-repo",
+    "development/skill-repos",
+    "development/skill-repos/../source-repo",
+    "development/skill-repos/../../../escape",
+    "../source-repo",
+    "/development/skill-repos/source-repo",
+    "C:/development/skill-repos/source-repo",
+    "development\\skill-repos\\source-repo",
+])
+def test_development_repository_path_boundary(tmp_path, path):
+    report = _run(tmp_path, [], sources=[_source(
+        "source-repo", path,
+        kind="development-repository",
+        origin="https://example.com/source-repo",
+        pinned_ref="main",
+    )])
+    assert "SOURCE_PATH_INVALID" in _codes(report)
+
+
+@pytest.mark.parametrize("path", [123, ["development/skill-repos/source-repo"]])
+def test_development_repository_rejects_non_string_path(tmp_path, path):
+    report = _run(tmp_path, [], sources=[_source(
+        "source-repo", path,
+        kind="development-repository",
+        origin="https://example.com/source-repo",
+        pinned_ref="main",
+    )])
+    assert "SOURCE_PATH_INVALID" in _codes(report)
+
+
+@pytest.mark.parametrize("path", [123, ["development/skill/example"]])
+def test_managed_skill_rejects_non_string_path(tmp_path, path):
+    report = _run(tmp_path, [_entry("example", path)])
+    assert "SKILL_PATH_INVALID" in _codes(report)
+
+
+@pytest.mark.parametrize("kind", ["upstream-snapshot", "local-reference"])
+def test_reference_source_kinds_do_not_require_repository_provenance(tmp_path, kind):
+    report = _run(tmp_path, [], sources=[_source("reference", "references/source", kind=kind)])
+    assert report["ok"] is True, report["errors"]
+
+
 def test_duplicate_source_ids_rejected(tmp_path):
     report = _run(
         tmp_path,
