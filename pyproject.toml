@@ -1,0 +1,19 @@
+[project]
+name = "global-skill-set"
+version = "0.0.0"
+description = "Tooling environment for the global skill system"
+requires-python = ">=3.9"
+dependencies = [
+    "PyYAML",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+addopts = "--basetemp=.tmp/pytest"
