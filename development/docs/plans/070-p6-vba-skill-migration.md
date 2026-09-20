@@ -1,6 +1,6 @@
 # P6 VBA Skill 统一迁移与全局上下文退役 — 精细实施计划
 
-Status: draft
+Status: executing
 Date: 2026-09-20
 Depends-on: 030-p2-runtime-ops, 040-p3-control-integration, 050-p4-selective-discovery-deployment
 

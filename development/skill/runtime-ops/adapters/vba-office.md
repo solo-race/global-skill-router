@@ -6,7 +6,7 @@ capabilities: [source.read, source.write, source.static-analyze, project.compile
 task_modes:
   closed: false
   modes: [diagnose, review, modify, test]
-verification_model_kind: linear
+verification_model_kind: independent_checks
 mutation_support: high-impact
 ---
 
@@ -25,7 +25,7 @@ Providers: the deployed vba-doctor and vba-lint servers. Version: record the eng
 | source.read | open_workbook, open_database, list_vba_modules, get_vba_code, get_ribbon_xml, sync_to_src |
 | source.write | set_vba_code, add_vba_module, remove_vba_module, set_ribbon_xml |
 | source.static-analyze | vba_parse, vba_inspect, vba_inspect_workspace, vba_list_inspections |
-| project.compile | compile_vba_project — Excel host only |
+| project.compile | compile_vba_project — Excel host only; dispatch-only/unverified |
 | runtime.execute | run_macro, get_macro_result |
 | ui.dialog-control | check_dialog, dismiss_dialog; screenshot as optional visual aid |
 
@@ -33,13 +33,13 @@ Providers: the deployed vba-doctor and vba-lint servers. Version: record the eng
 
 ### Host and file identity
 
-`app_type` accepts only `"excel"` (default) or `"access"`. Excel sessions are identified by workbook name as returned by `open_workbook` (e.g., `Book1.xlsm`). Access databases run in separate `Access.Application` instances identified by normalized database path.
+`app_type` accepts only `"excel"` (default) or `"access"`. Excel sessions are identified by workbook name as returned by `open_workbook` (e.g., `Book1.xlsm`). Access databases run in separate `Access.Application` instances identified by normalized absolute database path plus managed application HWND/PID. Asynchronous Access execution revalidates the HWND/PID and current database path after reacquiring the application; a mismatch fails closed before execution.
 
 ### Session and module tools
 
 | Tool | Signature | Contract |
 |---|---|---|
-| open_workbook | file_path: str | Opens `.xlsm`/`.xlsb`/`.xlsx`; returns workbook name/path/status. |
+| open_workbook | file_path: str, safe_inspection=False | Opens `.xlsm`/`.xlsb`/`.xlsx`; returns workbook name/path/status. Safe inspection behavior is defined below. |
 | open_database | file_path: str | Opens `.accdb`/`.mdb`; returns path/status. |
 | close_file | file_name: str, app_type="excel", save=True | Excel expects workbook name; Access expects database path. Choose `save` deliberately. |
 | list_open_files | — | Returns `{excel: [...], access: [...]}`. |
@@ -48,6 +48,8 @@ Providers: the deployed vba-doctor and vba-lint servers. Version: record the eng
 | set_vba_code | file_name: str, module_name: str, code: str, app_type="excel" | **Whole-module replacement**: deletes every existing line before inserting `code`; returns module + line count. |
 | add_vba_module | file_name: str, module_name: str, module_type="Standard", code="", app_type="excel" | Only names `Standard` and `ClassModule` are addable (never numeric IDs). Types: 1 Standard, 2 ClassModule, 3 Form, 100 Document. |
 | remove_vba_module | file_name: str, module_name: str, app_type="excel" | Refuses type-100 document modules (`ThisWorkbook`, worksheet/document modules). |
+
+`open_workbook(..., safe_inspection=True)` force-disables automatic macros (`AutomationSecurity=3`), suppresses link updates (`AskToUpdateLinks=False`, `UpdateLinks=0`), and opens a newly opened workbook read-only (`ReadOnly=True`). Prior application security/link settings are restored after the attempt, including failure. The default `False` preserves editable opening behavior. An already-open workbook is reused as-is: its security/read-only state is unchanged and the call does not newly grant managed-close ownership. Safe inspection cannot retroactively make that session safe; do not close it as cleanup unless it was already doctor-managed.
 
 ### XML and export tools
 
@@ -59,14 +61,15 @@ Providers: the deployed vba-doctor and vba-lint servers. Version: record the eng
 
 ### Compile, execution, dialogs
 
-- `compile_vba_project(file_name)` — **Excel only**; no `app_type` parameter. Opens VBE and runs Debug → Compile; returns `{status: ok/error, ...}`.
+- `compile_vba_project(file_name)` — **Excel only**; no `app_type` parameter. Verifies the requested workbook/VBProject is the VBE active project, dispatches the VBE CommandBars compile command, and returns `status: "unverified"`. The provider has no reliable compiler-result channel; dispatch never establishes Compile Verified.
 - `run_macro(file_name, macro_name, args=None, app_type="excel", timeout=10.0)` — runs in a worker; the implementation signature is authoritative even though a docstring says "default 3 seconds". Excel: `Application.Run` on `'WorkbookName'!MacroName`. Access: without args uses `Application.Eval("MacroName()")`; with args uses `Application.Run(macro_name, *args)`. The validated Access smoke harness is a **no-argument `Public Function` invoked through Eval** — do not substitute a parameterized macro or an ordinary `Public Sub`.
 - Timeout returns `{status: "running", request_id}`. Resolution sequence: `check_dialog(app_type="excel"` or `app_type="access", file_name=<database path>`)` → `dismiss_dialog(dialog_hwnd, button_text=<exact text>, input_text optional, entered before clicking)` (`button_text` required in practice) → `get_macro_result(request_id, app_type)` → report returned status/result/error. Structured dialog results only; `screenshot(save_path)` (Excel only) is optional visual evidence for layout/Ribbon appearance, never a substitute.
+- `check_dialog` authorizes only visible `#32770` dialogs owned by the selected Office window and process, recording owner HWND/PID and dialog identity. `dismiss_dialog` accepts only a discovered HWND and revalidates owner, process, class, contents, and child controls before every input/button mutation. Stale or mismatched provenance fails closed; stop for operator intervention instead of using foreground-window actions or generic desktop automation.
 - GitHub-token registry tools exist (get/set/list). Out of scope unless the task explicitly concerns GitHub token configuration; never place a returned token in logs or source files.
 
 ## 4. Preconditions and failures
 
-- The VBA project-object-model trust setting must be enabled in both hosts. Otherwise module operations return trust-setting guidance, and compile attempts fail with COM error `-2146827284`. Such permission failures downgrade achievable verification to Static; preserve the guidance verbatim and never relabel it compile/runtime evidence.
+- The VBA project-object-model trust setting must be enabled in both hosts. Otherwise module operations return trust-setting guidance, and compile attempts fail with COM error `-2146827284`. Report affected checks as unverified; Static still requires its own evidence. Preserve the guidance verbatim and never relabel it compile/runtime evidence.
 - Missing file → file-not-found error; missing module → value error. Preserve actual messages.
 - `set_ribbon_xml` against an open workbook with default `close_if_open=False` errors by design — an explicit choice is required.
 
@@ -74,15 +77,16 @@ Providers: the deployed vba-doctor and vba-lint servers. Version: record the eng
 
 State-changing operations: `set_vba_code` (whole-module replacement), `add_vba_module`, `remove_vba_module`, `set_ribbon_xml` (whole-part replacement), `close_file(save=True)`. Granularity is whole artifact — no line-level patching exists. Blast radius: an entire module or the entire custom UI part. Never touch production files when a development/test fixture is intended.
 
-## 6. Verification model (linear: Static → Compile → Runtime)
+## 6. Verification model (independent_checks)
 
 | State | Required evidence | Does not prove |
 |---|---|---|
-| Static | Changed module reread via `get_vba_code` matches the intended patch AND `vba_parse`/`vba_inspect` accept it with the host's `hostLibraries` value. | Compilation, event binding, focus, form/workbook state, active-object targets, runtime outcome. |
-| Compile | `compile_vba_project` returns `status: ok` for the actually open workbook — **Excel only**. For Access this state is **unsupported through the registered vba-doctor API**: always report `compile: unverified via vba-doctor`, even when the Eval-based smoke succeeds. | Behavioral correctness; Ribbon actually loaded. |
-| Runtime | Targeted `run_macro` completes; expected result/state observed; any dialog resolved through structured tools. | Anything beyond the exercised path. |
+| Static | Changed module reread via `get_vba_code` matches the intended patch AND `vba_parse`/`vba_inspect` accept it; inspection uses the host's explicit `hostLibraries` and `severity: "warning"`. | Compilation, event binding, focus, form/workbook state, active-object targets, runtime outcome. |
+| Compile | Unsupported through the current registered provider: Access has no compile operation; Excel dispatch returns `status: "unverified"` without a reliable compiler-result channel. Report `compile: unverified via vba-doctor`; record Excel separately as `compile dispatch: unverified`. | Dispatch does not prove compiler success; runtime smoke does not supply compile evidence. |
+| Runtime | Targeted `run_macro` completes; expected result/state observed; any dialog resolved through owned structured tools. | Static or Compile checks; anything beyond the exercised path. |
+| Operator-observed | Explicit operator observation tied to the identified target and exercised action. | Static, Compile, or Runtime checks; authorization alone proves none of them. |
 
-`unsupported`: [Access compile] — reason: no registered operation provides that evidence. A successful source write or clean lint result alone is never compile/runtime evidence. Only the highest achieved level may be reported (linear model).
+`relations: []`. `unsupported`: [Access compile, Excel compile] — reasons: no registered Access operation; Excel dispatch has no reliable result channel. Report every check individually as achieved or unverified, naming unsupported checks; no check implies another. A successful source write, clean lint, compile dispatch, or operator authorization alone is never compile/runtime evidence.
 
 ## 7. Recovery model (repo-local text backup)
 
@@ -100,10 +104,10 @@ Stop conditions: fixture missing; backup unconfirmed; failure whose recovery can
 
 Windows plus desktop Office hosts; trust setting enabled. Access instances are keyed by normalized database path; Excel sessions by workbook name. Configuration injection: profiles are agent guidance only — neither server reads skill or profile files automatically, so pass values explicitly on every call:
 
-- Access lint calls pass `hostLibraries: ["access"]`.
-- Excel lint calls pass `hostLibraries: ["Excel"]`.
+- Access inspection calls pass `hostLibraries: ["access"]`, `severity: "warning"`.
+- Excel inspection calls pass `hostLibraries: ["Excel"]`, `severity: "warning"`.
 
-Casing: `vba_inspect` / `vba_inspect_workspace` match host libraries case-insensitively; only `vba_list_inspections` filters its catalog case-sensitively. The values above are correct everywhere. Pass `app_type` explicitly per call likewise.
+Casing: `vba_inspect` / `vba_inspect_workspace` match host libraries case-insensitively; only `vba_list_inspections` filters its catalog case-sensitively. Pass the same host value explicitly for catalog calls; they have no severity parameter. Inspection providers have no `warning` default: the agent must supply that policy value. `vba_parse` accepts neither host libraries nor severity. Pass `app_type` explicitly per host call likewise.
 
 vba-lint notes: `vba_parse(code, depth=3, range 1-10)` → AST serialization; structure/syntax understanding only. `vba_inspect(code, hostLibraries=["excel"] default, severity error/warning/suggestion/hint, categories)` → `results`, `errors`, `skippedInspections`, `parseErrors`, engine version. `vba_inspect_workspace(path, hostLibraries=["excel"], severity?, categories?, limit=100, detailed=false)` → scans `.bas`/`.cls`/`.frm` sources; aborts above 500 candidate files — narrow the path or extend `.vbalintignore`. `vba_list_inspections(hostLibraries?, category?, tier "A"|"B")` → tier A parse-tree inspections, tier B symbol-aware. Treat the live catalog response as authoritative; never hardcode inspection counts. Lint is static evidence only: it cannot prove compilation, event binding, focus, form state, active-object targets, or runtime outcomes. Interpret findings through the selected host's semantics; never delete host-called event procedures because lint reports them unused. Scan exported/retrieved source only — binary fixtures are not parser inputs.
 

@@ -56,4 +56,4 @@ Generic illustrations: a build-tool adapter may use linear `parsed < linked < ex
 
 ## Adapter instances
 
-The first formal instance lives in `adapters/vba-office.md`: a `linear` model whose concrete states, required evidence, and unsupported declaration are defined there. Adapters with different kinds — including fully independent checks paired with transaction-rollback recovery — must fit this contract without modifying the Core; needing a Core edit signals an abstraction defect, not an adapter requirement.
+The first formal instance lives in `adapters/vba-office.md`: an `independent_checks` model whose concrete states, required evidence, and unsupported declaration are defined there. Adapters with different kinds — including fully independent checks paired with transaction-rollback recovery — must fit this contract without modifying the Core; needing a Core edit signals an abstraction defect, not an adapter requirement.
