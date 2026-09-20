@@ -29,9 +29,10 @@ Do not load all documentation by default.
 ## Commands
 
 ```bash
-py -3 development/tools/run_tests.py [pytest args...]   # run tests
-py -3 development/tools/deploy_skills.py [--target-root PATH]          # read-only deployment plan
-py -3 development/tools/deploy_skills.py --verify [--target-root PATH]  # verify managed payload
+uv sync
+uv run python development/tools/run_tests.py [pytest args...]   # run tests
+uv run python development/tools/deploy_skills.py [--target-root PATH]          # read-only deployment plan
+uv run python development/tools/deploy_skills.py --verify [--target-root PATH]  # verify managed payload
 ```
 
 ## Documentation Map
