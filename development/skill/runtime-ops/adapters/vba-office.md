@@ -33,7 +33,7 @@ Providers: the deployed vba-doctor and vba-lint servers. Version: record the eng
 
 ### Host and file identity
 
-`app_type` accepts only `"excel"` (default) or `"access"`. Excel sessions are identified by workbook name as returned by `open_workbook` (e.g., `Book1.xlsm`). Access databases run in separate `Access.Application` instances identified by normalized absolute database path plus managed application HWND/PID. Asynchronous Access execution revalidates the HWND/PID and current database path after reacquiring the application; a mismatch fails closed before execution.
+`app_type` accepts only `"excel"` (default) or `"access"`. Excel sessions are identified by workbook name as returned by `open_workbook` (e.g., `Book1.xlsm`). Access databases run in separate `Access.Application` instances identified by normalized absolute database path plus managed application HWND/PID. With multiple instances, never guess macro binding: establish the exact instance owning the target. Ambiguous ownership or a path/HWND/PID mismatch fails closed before execution. Asynchronous Access execution revalidates the HWND/PID and current database path after reacquiring the application.
 
 ### Session and module tools
 
@@ -69,24 +69,32 @@ Providers: the deployed vba-doctor and vba-lint servers. Version: record the eng
 
 ## 4. Preconditions and failures
 
+- For an in-scope task, source open/list/read and lint parse/inspect/workspace/catalog calls may proceed automatically. Use Excel safe inspection for read-only inspection and respect existing-session ownership; opening a file does not authorize source changes or business execution.
 - The VBA project-object-model trust setting must be enabled in both hosts. Otherwise module operations return trust-setting guidance, and compile attempts fail with COM error `-2146827284`. Report affected checks as unverified; Static still requires its own evidence. Preserve the guidance verbatim and never relabel it compile/runtime evidence.
 - Missing file → file-not-found error; missing module → value error. Preserve actual messages.
 - `set_ribbon_xml` against an open workbook with default `close_if_open=False` errors by design — an explicit choice is required.
 
 ## 5. Mutation model
 
-State-changing operations: `set_vba_code` (whole-module replacement), `add_vba_module`, `remove_vba_module`, `set_ribbon_xml` (whole-part replacement), `close_file(save=True)`. Granularity is whole artifact — no line-level patching exists. Blast radius: an entire module or the entire custom UI part. Never touch production files when a development/test fixture is intended.
+State-changing operations: `set_vba_code` (whole-module replacement), `add_vba_module`, `remove_vba_module`, `set_ribbon_xml` (whole-part replacement), `close_file(save=True)`. Granularity is whole artifact — no line-level patching exists. Blast radius: an entire module or the entire custom UI part.
+
+Hard guards:
+
+- Write only for an explicit user-requested VBA modification against an identified exact development/test target. This adapter never authorizes production/authoritative targets; stop if target status or identity is uncertain. Apply the same target boundary to runtime calls with mutation effects.
+- Read the complete current module/artifact before replacement or removal. Preserve unrelated behavior, make only the smallest necessary complete replacement, and never delete or replace existing business modules unnecessarily. Confirm a recoverable path before mutation; whole replacements follow §7.
+- After a change, reread the affected source, run host-correct static analysis, and perform narrow runtime verification on the development/test target; report unavailable evidence as unverified under §6.
+- Structured dialog discovery/control failure is operator-only. Stop and hand off the exact target, operation, failure, and available evidence; never fall back to foreground-window actions or generic desktop automation.
 
 ## 6. Verification model (independent_checks)
 
 | State | Required evidence | Does not prove |
 |---|---|---|
 | Static | Changed module reread via `get_vba_code` matches the intended patch AND `vba_parse`/`vba_inspect` accept it; inspection uses the host's explicit `hostLibraries` and `severity: "warning"`. | Compilation, event binding, focus, form/workbook state, active-object targets, runtime outcome. |
-| Compile | Unsupported through the current registered provider: Access has no compile operation; Excel dispatch returns `status: "unverified"` without a reliable compiler-result channel. Report `compile: unverified via vba-doctor`; record Excel separately as `compile dispatch: unverified`. | Dispatch does not prove compiler success; runtime smoke does not supply compile evidence. |
+| Compile | Access compile is unsupported: no registered operation. Excel compile is a registered dispatch operation returning `status: "unverified"` without a reliable compiler-result channel. Report `compile: unverified via vba-doctor`; record Excel separately as `compile dispatch: unverified`. | Dispatch does not prove compiler success; runtime smoke does not supply compile evidence. |
 | Runtime | Targeted `run_macro` completes; expected result/state observed; any dialog resolved through owned structured tools. | Static or Compile checks; anything beyond the exercised path. |
 | Operator-observed | Explicit operator observation tied to the identified target and exercised action. | Static, Compile, or Runtime checks; authorization alone proves none of them. |
 
-`relations: []`. `unsupported`: [Access compile, Excel compile] — reasons: no registered Access operation; Excel dispatch has no reliable result channel. Report every check individually as achieved or unverified, naming unsupported checks; no check implies another. A successful source write, clean lint, compile dispatch, or operator authorization alone is never compile/runtime evidence.
+`relations: []`. `unsupported`: [Access compile] — no registered Access operation. Excel compile dispatch is supported but its result remains unverified. Report every check individually as achieved or unverified, naming unsupported checks; no check implies another. Lint findings are advisory; a successful source write, clean lint, compile dispatch, or operator authorization alone is never compile/runtime evidence.
 
 ## 7. Recovery model (repo-local text backup)
 
@@ -117,13 +125,31 @@ Preferred modes: **diagnose** (reported defect, unexpected behavior, uncertain r
 
 `closed: false`. Intents such as build-new, refactor, or migration belong to none of these modes; route them through the Core operation lifecycle rather than forcing them into a mode. Mode workflows may specialize lifecycle steps but never weaken Core safety invariants.
 
+### Lazy-load index
+
+Resolve all paths below from the `runtime-ops` skill root. Load only the selected workflow and references needed for the identified host and question; never scan or preload the whole `references/vba-office` tree. Load the other host's references only for an explicit cross-host question.
+
+| Task | Load |
+|---|---|
+| diagnose | `workflows/vba-office/diagnose.md` + references for the suspected host behavior |
+| review | `workflows/vba-office/review.md` + `references/vba-office/shared/sources.md` + references for the reviewed host behavior |
+| modify | `workflows/vba-office/modify.md` + references for the affected host behavior |
+| test | `workflows/vba-office/test.md`; add host references only when the test depends on their semantics |
+| Access SaveAsText review | `references/vba-office/access/saveastext-source.md` + `scripts/vba-office/extract_access_saveastext.py`; classify/extract the source before parsing a mixed dump |
+
+Select references by the actual question:
+
+- Shared: evidence/source priority → `references/vba-office/shared/sources.md`; error cleanup/state restoration → `references/vba-office/shared/error-handling.md`; source encoding → `references/vba-office/shared/vba-encoding.md`.
+- Access: event callbacks/lifecycle → `references/vba-office/access/form-lifecycle.md`; focus/control access → `references/vba-office/access/controls.md`; record movement → `references/vba-office/access/record-navigation.md`; Dirty/NewRecord state → `references/vba-office/access/form-state.md`; DAO → `references/vba-office/access/dao.md`.
+- Excel: workbook/worksheet/range ownership → `references/vba-office/excel/workbook-worksheet-model.md`; events/re-entry → `references/vba-office/excel/worksheet-events.md`; UserForm → `references/vba-office/excel/userform-model.md`; Ribbon → `references/vba-office/excel/ribbon-xml.md`; add-ins → `references/vba-office/excel/addin-xlam.md`.
+
 ## 10. Fixture policy
 
 Controlled synthetic fixtures (`.accdb` / `.xlsm`) are local-only assets excluded by `.gitignore`; they are never committed, and a fresh clone must provision them before any fixture-backed verification. Before opening either kind, confirm existence at the recorded path; if absent, STOP fixture-backed verification, report the missing fixture as the blocker, and ask the operator how to proceed — never silently substitute production files. Never alter a fixture permanently for a one-off test: temporary smoke functions are added, run, reread, then removed. Do not modify a fixture to manufacture a passing result (e.g., an Excel compile failure caused by fixture references is recorded, not fixed).
 
 ## 11. Source priority instance
 
-1. Microsoft object-model reference for the selected host (Access claims vs. Excel claims use their own reference); 2. the other host's object-model reference, only for cross-host claims; 3. Microsoft DAO Reference; 4. Microsoft VBA Language Reference; 5. controlled experiments via fixtures through vba-doctor tools; 6. vba-lint generic static analysis (generic VBA only, never runtime state); 7. community sources, discovery only. A lower-priority source never overrides a higher-priority one for the same claim.
+For source-priority or conflict questions, load `references/vba-office/shared/sources.md` from the `runtime-ops` skill root. It owns the source policy; follow its claim-ownership and controlled-experiment rules.
 
 ## 12. Provenance
 
