@@ -1,7 +1,8 @@
 # VBA Test Workflow
 
-Use for behavioral verification through a deterministic entry point. Apply
-`SKILL.md` and `adapters/vba-office.md` for fixture choice, ownership, tool
+Use for behavioral verification through a deterministic entry point. Apply the
+loaded module contract (source `SKILL.md`, deployed payload `MODULE.md`) and
+`adapters/vba-office.md` for fixture choice, ownership, tool
 calls, dialog handling, recovery, and independent verification checks. Paths
 resolve from the `runtime-ops` root. Load host references only when the test
 depends on their semantics; this workflow does not require a reference scan.

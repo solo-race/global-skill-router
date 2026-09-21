@@ -1,8 +1,9 @@
 # VBA Review Workflow
 
-Use for a code review or audit. Apply `SKILL.md` and `adapters/vba-office.md`
-for operation and evidence contracts. Paths resolve from the `runtime-ops`
-root. Review has two interpretation layers: generic VBA, then owning-host
+Use for a code review or audit. Apply the loaded module contract (source
+`SKILL.md`, deployed payload `MODULE.md`) and `adapters/vba-office.md` for
+operation and evidence contracts. Paths resolve from the `runtime-ops` root.
+Review has two interpretation layers: generic VBA, then owning-host
 semantics.
 
 ## Sequence

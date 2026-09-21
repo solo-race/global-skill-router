@@ -1,7 +1,8 @@
 # VBA Modify Workflow
 
-Use for an authorized change to existing VBA or Ribbon XML. Apply `SKILL.md`
-and `adapters/vba-office.md` for target permission, ownership, whole-artifact
+Use for an authorized change to existing VBA or Ribbon XML. Apply the loaded
+module contract (source `SKILL.md`, deployed payload `MODULE.md`) and
+`adapters/vba-office.md` for target permission, ownership, whole-artifact
 writes, backup/recovery, and operator handoff. All paths resolve from the
 `runtime-ops` root.
 

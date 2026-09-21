@@ -117,17 +117,30 @@ def test_access_baseline_is_no_argument_public_function_through_eval(adapter):
 
 @pytest.mark.parametrize("scenario", ["win-access-vba", "win-android", "wsl-python"])
 def test_runtime_ops_is_only_in_the_office_scenario(payload_root, scenario):
-    shard = yaml.safe_load(
-        (payload_root / "_platform" / "routes" / f"{scenario}.yaml").read_text(encoding="utf-8")
-    )
+    shard_path = payload_root / "_platform" / "routes" / f"{scenario}.yaml"
+    shard_text = shard_path.read_text(encoding="utf-8")
+    shard = yaml.safe_load(shard_text)
     names = [item["name"] for item in shard["skills"]]
-    assert ("runtime-ops" in names) == (scenario == "win-access-vba"), (
-        f"Unexpected runtime-ops route in {scenario}: {names}"
-    )
+    runtime_entry = next((item for item in shard["skills"] if item["name"] == "runtime-ops"), None)
+    if scenario == "win-access-vba":
+        assert runtime_entry is not None, (
+            f"Office scenario must be able to select runtime-ops: {names}"
+        )
+        assert any(adapter["name"] == "vba-office" for adapter in runtime_entry["adapters"]), (
+            "Office scenario must select the VBA adapter through runtime-ops"
+        )
+    else:
+        assert "vba-office" not in shard_text, (
+            f"VBA adapter/workflow/reference leaked into {scenario}: {shard_text}"
+        )
     for entry in shard["skills"]:
-        assert entry["skill_path"] == f"library/{entry['name']}/SKILL.md", (
+        assert entry["skill_path"] == f"library/{entry['name']}/MODULE.md", (
             "Scenario routes select module entrypoints, never VBA companion files"
         )
+        for adapter in entry["adapters"]:
+            assert adapter["adapter_path"] == (
+                f"library/{entry['name']}/adapters/{adapter['name']}.md"
+            ), "Scenario routes select owner-contained adapter paths"
 
 
 def test_no_match_index_and_adapter_preserve_selective_loading(payload_root, adapter):

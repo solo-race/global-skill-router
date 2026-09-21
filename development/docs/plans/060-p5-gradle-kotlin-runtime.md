@@ -142,7 +142,7 @@ scenario: win-android
 skills:
   - name: runtime-ops
     description: <bounded module description>
-    skill_path: library/runtime-ops/SKILL.md
+    skill_path: library/runtime-ops/MODULE.md
     status: active
     adapters:
       - name: android-gradle
@@ -182,7 +182,7 @@ skills:
 
 1. scenario 已解析后只读一个 shard；
 2. 选择 module 后，如果 candidate 带 adapter mapping，保留该 bounded mapping 作为 module adapter selection evidence；
-3. 加载 `library/<module>/SKILL.md`；
+3. 加载 `library/<module>/MODULE.md`；
 4. 对 runtime-ops，只加载 route mapping 指向的匹配 adapter；
 5. 不扫描 `library/` 或 `adapters/`，不回读 manifest/source repo。
 

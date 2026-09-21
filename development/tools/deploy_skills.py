@@ -107,7 +107,7 @@ def _route_path(value: object, label: str) -> PurePosixPath:
 
 
 def _library_skill_path(value: object, label: str) -> PurePosixPath:
-    """Validate a router-relative direct library SKILL.md path."""
+    """Validate a router-relative direct library MODULE.md path."""
 
     if not isinstance(value, str) or not value.strip():
         raise DeploymentError(f"{label} must be a non-empty POSIX path")
@@ -116,8 +116,8 @@ def _library_skill_path(value: object, label: str) -> PurePosixPath:
     path = PurePosixPath(value)
     if path.is_absolute() or ".." in path.parts or "." in path.parts:
         raise DeploymentError(f"{label} must not be absolute or contain dot segments: {value!r}")
-    if len(path.parts) != 3 or path.parts[0] != "library" or path.parts[2] != "SKILL.md":
-        raise DeploymentError(f"{label} must equal library/<module>/SKILL.md: {value!r}")
+    if len(path.parts) != 3 or path.parts[0] != "library" or path.parts[2] != "MODULE.md":
+        raise DeploymentError(f"{label} must equal library/<module>/MODULE.md: {value!r}")
     return path
 
 
@@ -183,7 +183,7 @@ def _validate_route_index(index: object, router_root: Path) -> set[str]:
         if not isinstance(selector, str) or not selector.strip() or len(selector) > 180:
             raise DeploymentError(f"global route selector must be short and non-empty: {name!r}")
         skill_path = _library_skill_path(item.get("skill_path"), f"global route skill path for {name}")
-        expected = f"library/{name}/SKILL.md"
+        expected = f"library/{name}/MODULE.md"
         if skill_path.as_posix() != expected:
             raise DeploymentError(f"global route skill path for {name} must be {expected!r}")
         if not router_root.joinpath(*skill_path.parts).is_file():
@@ -244,7 +244,7 @@ def _validate_route_index(index: object, router_root: Path) -> set[str]:
                 raise DeploymentError(
                     f"v3 route candidate fields are invalid: {candidate_name!r}"
                 )
-            expected_skill_path = f"library/{candidate_name}/SKILL.md"
+            expected_skill_path = f"library/{candidate_name}/MODULE.md"
             if skill_path.as_posix() != expected_skill_path:
                 raise DeploymentError(
                     f"v3 route skill path for {candidate_name} must be {expected_skill_path!r}"
@@ -419,15 +419,33 @@ def _active_adapters(data: dict, owner: str, scenario: str) -> list[dict]:
 
 
 def _copy_module_source(source: Path, destination: Path, planned_files: set[str]) -> None:
-    """Copy a module while excluding only manifest-registered planned adapters."""
+    """Copy a private module without discovery metadata or planned adapters."""
 
     def ignore(directory: str, names: list[str]) -> list[str]:
         relative = Path(directory).resolve().relative_to(source.resolve()).as_posix()
         if relative == "adapters":
             return sorted(planned_files.intersection(names))
+        if relative == "agents":
+            return [name for name in names if name == "openai.yaml"]
         return []
 
     shutil.copytree(source, destination, ignore=ignore)
+    (destination / "SKILL.md").rename(destination / "MODULE.md")
+
+
+def _discovery_boundary_errors(router_root: Path) -> list[str]:
+    """Keep Codex discovery files at the router entrypoint, outside library."""
+
+    errors = []
+    if not (router_root / "SKILL.md").is_file():
+        errors.append("router discovery entrypoint SKILL.md is missing")
+    library = router_root / "library"
+    forbidden = sorted(set(library.rglob("SKILL.md")) | set(library.rglob("agents/openai.yaml")))
+    for path in forbidden:
+        errors.append(
+            f"library contains forbidden discovery entrypoint: {path.relative_to(router_root).as_posix()}"
+        )
+    return errors
 
 
 def _route_payloads(data: dict, root: Path, router_root: Path) -> tuple[dict, dict[str, str]]:
@@ -444,7 +462,7 @@ def _route_payloads(data: dict, root: Path, router_root: Path) -> tuple[dict, di
             {
                 "name": name,
                 "selector": str(entry.get("routing_selector", "")).strip(),
-                "skill_path": f"library/{name}/SKILL.md",
+                "skill_path": f"library/{name}/MODULE.md",
             }
         )
     index = {
@@ -487,7 +505,7 @@ def _route_payloads(data: dict, root: Path, router_root: Path) -> tuple[dict, di
                 {
                     "name": name,
                     "description": _short_description(module_root, entry),
-                    "skill_path": f"library/{name}/SKILL.md",
+                    "skill_path": f"library/{name}/MODULE.md",
                     "status": "active",
                     "adapters": adapters,
                 }
@@ -535,6 +553,9 @@ def build_payload(manifest_path: Path = DEFAULT_MANIFEST, staging_root: Path | N
             planned_adapter_files.get(str(entry["name"]), set()),
         )
 
+    discovery_errors = _discovery_boundary_errors(payload_root)
+    if discovery_errors:
+        raise DeploymentError("; ".join(discovery_errors))
     index, shard_hashes = _route_payloads(data, root, payload_root)
     hashes = _relative_file_hashes(payload_root)
     state = {
@@ -671,6 +692,7 @@ def verify_target(target_root: Path, expected_state: dict | None = None) -> dict
         return {"ok": False, "target": str(target), "errors": [str(exc)]}
     if not target.is_dir():
         return {"ok": False, "target": str(target), "errors": ["managed router is missing"]}
+    errors.extend(_discovery_boundary_errors(target))
     state = _load_state(target)
     if state is None:
         return {"ok": False, "target": str(target), "errors": ["deployment state is missing or invalid"]}

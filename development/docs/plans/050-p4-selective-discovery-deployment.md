@@ -14,7 +14,7 @@ P4 的目标是把“逻辑 Skill 集合”与“Codex 顶层可见 Skill 集合
 
 P4 完成后必须满足：新增 module 可以增长，但平台管理的 Codex 顶层 Skill 数保持 1；router 自身不吸收各 module 正文；未命中的 module 不被读取；部署可重复执行、更新同名 router payload、检测 drift，并在替换失败时恢复先前可用状态。
 
-本阶段不迁移或删除现有 `C:\Users\tiany\.codex\skills\vba-skill`，不删除 `customer_screening/.agents/skills/recycling-company-investigation`，不实现 SQL/Android/WSL planned adapter，不把 Codex 本体修改为理解 global-skill-set manifest，也不假设 Codex 提供“Skill 调 Skill”的专有 API。Router 通过普通相对路径读取嵌套 module 的 `SKILL.md`，这是本阶段唯一依赖的调用机制。
+本阶段不迁移或删除现有 `C:\Users\tiany\.codex\skills\vba-skill`，不删除 `customer_screening/.agents/skills/recycling-company-investigation`，不实现 SQL/Android/WSL planned adapter，不把 Codex 本体修改为理解 global-skill-set manifest，也不假设 Codex 提供“Skill 调 Skill”的专有 API。Router 通过普通相对路径读取部署后的嵌套 module `MODULE.md`，这是本阶段唯一依赖的调用机制；source tree 中的 module `SKILL.md` 只在 staging 时转换，不改变 source layout。
 
 ## §2 架构决策 D1–D10
 
@@ -38,12 +38,16 @@ P4 完成后必须满足：新增 module 可以增长，但平台管理的 Codex
     │       └── wsl-python.yaml
     └── library/
         ├── research-investigation/
-        │   └── ...完整 Skill root...
+        │   ├── MODULE.md
+        │   ├── references/
+        │   └── ...module payload (without module-root agents/openai.yaml)...
         └── runtime-ops/
-            └── ...完整 Skill root...
+            ├── MODULE.md
+            ├── references/
+            └── ...module payload (without module-root agents/openai.yaml)...
 ```
 
-`global-skill-router` 是本平台唯一顶层 Skill。`library/*` 不带到 target root 的同级目录，因此不进入平台管理的顶层 catalog。部署器不得修改 target root 中与本平台无关的既有 Skill。
+`global-skill-router` 是本平台唯一顶层 Skill。`library/*` 中的 module 只以私有 `MODULE.md` 载荷存在，且不带 module-root `agents/openai.yaml`，因此不会产生额外的 Codex discovery entry；部署器不得修改 target root 中与本平台无关的既有 Skill。
 
 ### D2 — Manifest v3 增加 `deployment_role`
 
@@ -89,11 +93,11 @@ Router 正常流程：
 2. 读取 `_platform/routes/index.yaml` 获得 scenario shard 路径；
 3. 只读取必要的一个 shard；仅在场景确实不确定时读取第二个 shard；
 4. 从 shard 中选择最小 module 集，默认一个；无匹配时不加载 module；
-5. 读取所选 `library/<module>/SKILL.md`；
+5. 读取所选 `library/<module>/MODULE.md`；
 6. 后续 profile/adapter/reference 加载完全服从该 module 自己的 progressive-disclosure contract；
 7. 不扫描 `library/`，不预读未命中 module。
 
-“调取其他 Skill”在 P4 的准确含义是**读取并服从嵌套 module 的 SKILL.md**，不是要求 Codex 把 nested directory 再注册为原生 Skill。
+“调取其他 Skill”在 P4 的准确含义是**读取并服从部署后的嵌套 module `MODULE.md`**，不是要求 Codex 把 nested directory 再注册为原生 Skill。
 
 ### D4 — 路由索引分层，避免把 catalog 膨胀转移到 router
 
@@ -102,7 +106,7 @@ Deploy manager 根据 manifest + active logical entrypoint metadata 生成 `_pla
 ```yaml
 - name: research-investigation
   description: <bounded short description>
-  skill_path: library/research-investigation/SKILL.md
+  skill_path: library/research-investigation/MODULE.md
   status: active
 ```
 
@@ -120,7 +124,7 @@ research-investigation/                  # module source
 runtime-ops/                             # module source
 ```
 
-Deploy manager 在 staging tree 中复制 router source，再把 active modules 的完整 Skill root 复制到 `library/<name>/`，最后生成 `_platform/routes/*` 与 `deployment-state.json`。因此 router source 本身不需要在 Git 中持有派生 route shards；**assembled payload** 才是运行时自足单元。
+Deploy manager 在 staging tree 中复制 router source，再把 active module source roots 转换复制到 `library/<name>/`：根 `SKILL.md` 部署为私有 `MODULE.md`，module-root `agents/openai.yaml` 不进入 payload，内部 profile 文件继续保留；最后生成 `_platform/routes/*` 与 `deployment-state.json`。因此 router source 本身不需要在 Git 中持有派生 route shards；**assembled payload** 才是运行时自足单元。
 
 P3 的 self-containment 约束在 P4 细化为：module source 自足；router assembled payload 自足。部署后不得回读仓库顶层 `references/`、`development/docs/` 或 manifest 源路径。
 
@@ -236,7 +240,7 @@ Route builder 可放在 `deploy_skills.py` 内部纯函数，不另建脚本，�
 - planned entries 不进入 active candidate；
 - route 生成后进行自验证，任何 path 不存在/越界则拒绝 deploy。
 
-为了避免“router 为选 skill 又读取所有 skill”的反模式，SKILL.md 不允许回退成扫描 `library/*/SKILL.md`。
+为了避免“router 为选 skill 又读取所有 skill”的反模式，router 不允许回退成扫描 `library/*/MODULE.md`。
 
 ## §6 Deploy manager 测试计划
 
@@ -282,6 +286,8 @@ P4 的核心不是“两个 Skill 能被复制”，而是“Skill 集合增长�
 | F | synthetic 扩展包（测试 target 或可控环境） | module 数增长不产生新的平台顶层 Skill |
 
 观察项：是否错误读取未命中 module；router 是否因描述不足频繁误路由；是否需要同时加载两个 module；route shard 大小与阅读次数；旧 `vba-skill` 是否仍可显式使用。Alpha 结果只记录稳定决策所需结论，不把一次性 prompt transcript 塞入长期文档。
+
+当前部署验收记录（机器证据，live Alpha 仍未完成）：旧 picker 曾显示 `Global Skill Router`、`Development Delegation`、`Runtime Operations`、`Kotlin Tooling`、`Research Investigation`；目标 payload 的物理 picker 仅显示 `Global Skill Router`，其余 modules 仍由内部 route 指向并可加载。尚未在 fresh Codex session 中完成 §8 的 live discovery/任务行为复核，因此 P4 不据此宣称 Live Alpha 已通过。
 
 ## §9 实施顺序
 

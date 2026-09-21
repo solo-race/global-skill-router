@@ -1,7 +1,8 @@
 # VBA Diagnose Workflow
 
 Use for a reported defect, unexpected behavior, or uncertain runtime state.
-Apply `SKILL.md` and `adapters/vba-office.md`; their operation, ownership,
+Apply the loaded module contract (source `SKILL.md`, deployed payload `MODULE.md`)
+and `adapters/vba-office.md`; their operation, ownership,
 recovery, and operator-handoff contracts remain authoritative. Paths below
 resolve from the `runtime-ops` root.
 

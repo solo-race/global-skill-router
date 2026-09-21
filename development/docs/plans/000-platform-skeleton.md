@@ -94,8 +94,8 @@ P4 的运行时安装形状与源码形状不同：`development/skill/` 继续�
 |---|---|---|
 | Codex 会把顶层 Skill catalog 的 name/description 暴露给模型并受 context budget 约束 | 单一平台入口：只把 `global-skill-router` 安装为本平台顶层 Skill | `development/skill/global-skill-router/` + deploy manager |
 | 技能数量增长会使直接安装模式的初始 discovery 面扩大 | 物理 catalog 与逻辑 registry 分离：framework/worker 保持标准 Skill 源码，但部署为 router 私有 module | manifest v3 `deployment_role` |
-| Router 若扫描全部 module，同样会把增长成本转移到每次任务 | 分层路由索引：先读固定小型 scenario index，只在命中后读对应 route shard，再读取所选 module `SKILL.md` | deploy-generated routing index |
-| Codex 没有要求嵌套 module 必须再次注册成原生 Skill | Router 通过相对路径加载 module 的 `SKILL.md`；module 仍复用原有 profile/adapter progressive disclosure | router contract + private `library/` |
+| Router 若扫描全部 module，同样会把增长成本转移到每次任务 | 分层路由索引：先读固定小型 scenario index，只在命中后读对应 route shard，再读取所选 module `MODULE.md` | deploy-generated routing index |
+| Codex 没有要求嵌套 module 必须再次注册成原生 Skill | Router 通过相对路径加载部署后的 module `MODULE.md`；module 仍复用原有 profile/adapter progressive disclosure | router contract + private `library/` |
 | 手工复制无法可靠更新、验证或回滚 | repo-owned deploy manager：validate → build staging payload → diff/plan → atomic-ish replace with recovery → verify/drift report | `development/tools/deploy_skills.py` |
 | 新增大量 module 后是否真的不增加顶层技能负载缺少证据 | 结构回归 + Alpha 黑盒测试：增加 synthetic modules 后平台管理的顶层 Skill 数仍为 1，未命中 module 不被读取 | P4 tests + live smoke |
 

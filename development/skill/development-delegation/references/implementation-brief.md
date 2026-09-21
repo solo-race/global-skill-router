@@ -1,6 +1,7 @@
 # Implementation Brief
 
-Pass only the information needed for this acceptance unit. Stable rules live in `SKILL.md`.
+Pass only the information needed for this acceptance unit. Stable rules live in
+the loaded module contract (source `SKILL.md`, deployed payload `MODULE.md`).
 
 ```text
 IMPLEMENTATION_BRIEF

@@ -197,6 +197,75 @@ def test_first_install_and_legacy_coexistence(tmp_path):
     assert legacy_file.read_text(encoding="utf-8") == "leave me"
 
 
+def test_real_payload_has_only_router_discovery_entrypoint(tmp_path):
+    payload = _build(deploy_skills.DEFAULT_MANIFEST, tmp_path / "staging")
+    router = payload["payload_root"]
+    library = router / "library"
+    discovery_roots = {
+        path.parent for path in router.parent.rglob("SKILL.md")
+    } | {
+        path.parent.parent for path in router.parent.rglob("agents/openai.yaml")
+    }
+
+    assert discovery_roots == {router}
+    assert (router / "SKILL.md").is_file()
+    assert not list(library.rglob("SKILL.md"))
+    assert not list(library.rglob("agents/openai.yaml"))
+    for module in payload["modules"]:
+        source = deploy_skills.DEFAULT_MANIFEST.parent / module["name"]
+        deployed = library / module["name"]
+        assert (deployed / "MODULE.md").read_bytes() == (source / "SKILL.md").read_bytes()
+        assert (source / "agents" / "openai.yaml").is_file()
+        assert not (source / "MODULE.md").exists()
+    source_agents = deploy_skills.DEFAULT_MANIFEST.parent / "development-delegation" / "agents"
+    profiles = list(source_agents.glob("*.toml"))
+    assert profiles
+    for profile in profiles:
+        deployed = library / "development-delegation" / "agents" / profile.name
+        assert deployed.read_bytes() == profile.read_bytes()
+
+
+@pytest.mark.parametrize("relative", ["references/nested/SKILL.md", "references/nested/agents/openai.yaml"])
+def test_build_rejects_nested_module_discovery_files(tmp_path, relative):
+    manifest, _ = _fixture_repo(tmp_path)
+    forbidden = manifest.parent / "module-00" / relative
+    forbidden.parent.mkdir(parents=True)
+    forbidden.write_text("unexpected discovery file\n", encoding="utf-8")
+
+    with pytest.raises(deploy_skills.DeploymentError, match="forbidden discovery entrypoint"):
+        _build(manifest, tmp_path / "staging")
+
+
+@pytest.mark.parametrize("relative", ["SKILL.md", "agents/openai.yaml", "references/nested/SKILL.md", "references/nested/agents/openai.yaml"])
+def test_cli_verify_rejects_module_discovery_files(tmp_path, capsys, monkeypatch, relative):
+    payload = _build(deploy_skills.DEFAULT_MANIFEST, tmp_path / "staging")
+    target = tmp_path / "skills"
+    deploy_skills.apply_payload(target, payload)
+    forbidden = target / "global-skill-router" / "library" / "runtime-ops" / relative
+    forbidden.parent.mkdir(parents=True, exist_ok=True)
+    forbidden.write_text("unexpected discovery file\n", encoding="utf-8")
+    monkeypatch.setattr(deploy_skills, "REPO_ROOT", tmp_path)
+
+    assert deploy_skills.main(["--verify", "--target-root", str(target)]) == 1
+    result = json.loads(capsys.readouterr().out)
+    assert result["ok"] is False
+    assert f"library contains forbidden discovery entrypoint: library/runtime-ops/{relative}" in result["errors"]
+    assert forbidden.is_file()
+
+
+def test_verify_requires_router_discovery_entrypoint(tmp_path):
+    manifest, _ = _fixture_repo(tmp_path)
+    payload = _build(manifest, tmp_path / "staging")
+    target = tmp_path / "skills"
+    deploy_skills.apply_payload(target, payload)
+    (target / "global-skill-router" / "SKILL.md").unlink()
+
+    result = deploy_skills.verify_target(target)
+
+    assert result["ok"] is False
+    assert "router discovery entrypoint SKILL.md is missing" in result["errors"]
+
+
 def test_noop_and_content_update(tmp_path):
     manifest, _ = _fixture_repo(tmp_path)
     target_root = tmp_path / "skills"
@@ -213,7 +282,7 @@ def test_noop_and_content_update(tmp_path):
     module_file.write_text(module_file.read_text(encoding="utf-8") + "\nupdated\n", encoding="utf-8")
     updated = _build(manifest, tmp_path / "updated")
     assert deploy_skills.apply_payload(target_root, updated)["action"] == "applied"
-    assert "updated" in (target_root / "global-skill-router" / "library" / "module-00" / "SKILL.md").read_text(encoding="utf-8")
+    assert "updated" in (target_root / "global-skill-router" / "library" / "module-00" / "MODULE.md").read_text(encoding="utf-8")
     assert legacy.read_bytes() == b"legacy bytes"
 
 
@@ -225,7 +294,7 @@ def test_failure_recovery_restores_previous_payload(tmp_path, monkeypatch):
     legacy.write_bytes(b"legacy bytes")
     first = _build(manifest, tmp_path / "first")
     deploy_skills.apply_payload(target_root, first)
-    old_text = (target_root / "global-skill-router" / "library" / "module-00" / "SKILL.md").read_text(encoding="utf-8")
+    old_text = (target_root / "global-skill-router" / "library" / "module-00" / "MODULE.md").read_text(encoding="utf-8")
     module_file = manifest.parent / "module-00" / "SKILL.md"
     module_file.write_text(old_text + "\nnew version\n", encoding="utf-8")
     updated = _build(manifest, tmp_path / "updated")
@@ -242,7 +311,7 @@ def test_failure_recovery_restores_previous_payload(tmp_path, monkeypatch):
     monkeypatch.setattr(deploy_skills, "verify_target", fail_once)
     with pytest.raises(deploy_skills.DeploymentError, match="previous snapshot restored and verified"):
         deploy_skills.apply_payload(target_root, updated)
-    assert (target_root / "global-skill-router" / "library" / "module-00" / "SKILL.md").read_text(encoding="utf-8") == old_text
+    assert (target_root / "global-skill-router" / "library" / "module-00" / "MODULE.md").read_text(encoding="utf-8") == old_text
     assert original_verify(target_root)["ok"]
     assert legacy.read_bytes() == b"legacy bytes"
 
@@ -280,12 +349,12 @@ def test_rollback_restores_previous_snapshot(tmp_path):
     module_file.write_text(module_file.read_text(encoding="utf-8") + "\nsecond\n", encoding="utf-8")
     second = _build(manifest, tmp_path / "second")
     deploy_skills.apply_payload(target_root, second)
-    assert "second" in (target_root / "global-skill-router" / "library" / "module-00" / "SKILL.md").read_text(encoding="utf-8")
+    assert "second" in (target_root / "global-skill-router" / "library" / "module-00" / "MODULE.md").read_text(encoding="utf-8")
 
     result = deploy_skills.rollback_payload(target_root)
 
     assert result["action"] == "rollback"
-    assert "second" not in (target_root / "global-skill-router" / "library" / "module-00" / "SKILL.md").read_text(encoding="utf-8")
+    assert "second" not in (target_root / "global-skill-router" / "library" / "module-00" / "MODULE.md").read_text(encoding="utf-8")
     assert deploy_skills.verify_target(target_root)["ok"]
     assert legacy.read_bytes() == b"legacy bytes"
 
@@ -311,7 +380,7 @@ def test_rollback_failure_restores_current_payload_and_keeps_snapshot(tmp_path, 
     monkeypatch.setattr(deploy_skills, "verify_target", fail_once)
     with pytest.raises(deploy_skills.DeploymentError, match="current payload restored and verified"):
         deploy_skills.rollback_payload(target_root)
-    assert "second" in (target_root / "global-skill-router" / "library" / "module-00" / "SKILL.md").read_text(encoding="utf-8")
+    assert "second" in (target_root / "global-skill-router" / "library" / "module-00" / "MODULE.md").read_text(encoding="utf-8")
     assert original_verify(target_root)["ok"]
     assert (deploy_skills.backup_root(target_root) / "previous").is_dir()
 
@@ -320,7 +389,7 @@ def test_drift_is_reported_without_overwrite(tmp_path):
     manifest, _ = _fixture_repo(tmp_path)
     target_root = tmp_path / "skills"
     deploy_skills.apply_payload(target_root, _build(manifest, tmp_path / "staging"))
-    installed = target_root / "global-skill-router" / "library" / "module-00" / "SKILL.md"
+    installed = target_root / "global-skill-router" / "library" / "module-00" / "MODULE.md"
     installed.write_text(installed.read_text(encoding="utf-8") + "\nmanual edit\n", encoding="utf-8")
 
     result = deploy_skills.verify_target(target_root)
@@ -525,7 +594,7 @@ def test_v3_route_rejects_canonical_adapter_for_wrong_scenario(tmp_path):
                     {
                         "name": "module-00",
                         "description": "module-00 route.",
-                        "skill_path": "library/module-00/SKILL.md",
+                        "skill_path": "library/module-00/MODULE.md",
                         "status": "active",
                         "adapters": [
                             {
@@ -563,7 +632,7 @@ def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_pa
         {
             "name": "development-delegation",
             "selector": "Existing implementation plan or acceptance contract requiring delegated implementation and validation.",
-            "skill_path": "library/development-delegation/SKILL.md",
+            "skill_path": "library/development-delegation/MODULE.md",
         }
     ]
     assert not (runtime_ops / "adapters" / "gpt-repo-local.md").exists()
@@ -579,6 +648,9 @@ def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_pa
             )
         )
         names = [item["name"] for item in shard["skills"]]
+        for item in shard["skills"]:
+            assert item["skill_path"] == f"library/{item['name']}/MODULE.md"
+            assert (payload["payload_root"] / item["skill_path"]).is_file()
         assert "development-delegation" not in names
         if scenario == "wsl-python":
             assert "runtime-ops" not in names
@@ -588,7 +660,7 @@ def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_pa
             item for item in shard["skills"] if item["name"] == "runtime-ops"
         )
         assert runtime_entry["name"] == "runtime-ops"
-        assert runtime_entry["skill_path"] == "library/runtime-ops/SKILL.md"
+        assert runtime_entry["skill_path"] == "library/runtime-ops/MODULE.md"
         assert runtime_entry["status"] == "active"
         assert runtime_entry["description"]
         adapter_name, adapter_description = {
@@ -679,7 +751,7 @@ def test_p5_gradle_contract_and_source_independent_deployment(tmp_path):
     }]
     assert kotlin_route["name"] == "kotlin-tooling"
     assert kotlin_route["description"]
-    assert kotlin_route["skill_path"] == "library/kotlin-tooling/SKILL.md"
+    assert kotlin_route["skill_path"] == "library/kotlin-tooling/MODULE.md"
     assert kotlin_route["status"] == "active"
     assert kotlin_route["adapters"] == []
     assert all(

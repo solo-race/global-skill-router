@@ -91,6 +91,9 @@ For heavier skills, extend toward the five-layer stack reviewed in `architecture
 - **Routed payload boundary:** `deploy_skills.py` installs one managed top-level directory,
   `global-skill-router/`. The router source is copied to the payload root; active
   `deployment_role: module` Skills are copied below `global-skill-router/library/<name>/`.
+  During staging, each module's source-root `SKILL.md` becomes private `MODULE.md` and
+  its root `agents/openai.yaml` is omitted; internal agent profiles and other runtime
+  files remain available to the router.
   Existing `agents/`, `references/`, `profiles/`, `adapters/`, and `scripts/` directories
   travel with their owning Skill. `development/tools/`, plans, and read-only source references
   never enter the payload.
