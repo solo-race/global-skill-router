@@ -28,6 +28,22 @@ sources:
     pinned_ref: b52661368e79d296fc9a5ade96798223bd1782f0
     version: "2026-09-14"
     description: Local source repository for the managed development-delegation skill.
+  - id: gradle-mcp-reference
+    path: development/skill-repos/gradle-mcp
+    kind: development-repository
+    required: false
+    origin: https://github.com/rnett/gradle-mcp.git
+    pinned_ref: 493af5a8c87205a1e923ddf3dc6b2fa7812866ce
+    version: "2026-09-21"
+    description: Local source repository for Gradle MCP runtime and Agent Skill design.
+  - id: kotlin-agent-skills-reference
+    path: development/skill-repos/kotlin-agent-skills
+    kind: development-repository
+    required: false
+    origin: https://github.com/Kotlin/kotlin-agent-skills.git
+    pinned_ref: c2f90697bf71966a117a13340d5fff787f004140
+    version: "2026-09-21"
+    description: Local source repository for Kotlin official Agent Skill design.
 
 skills:
   - name: research-investigation
@@ -46,12 +62,23 @@ skills:
     status: active
     deployment_role: module
     routing_scope: scenario
-    scenarios: [win-access-vba]
+    scenarios: [win-access-vba, win-android]
     deps: []
     composed_of: []
     entrypoint: true
     version: "0.1.0"
     description: Host-neutral runtime operations framework.
+  - name: kotlin-tooling
+    path: development/skill/kotlin-tooling
+    status: active
+    deployment_role: module
+    routing_scope: scenario
+    scenarios: [win-android]
+    deps: []
+    composed_of: []
+    entrypoint: true
+    version: "0.1.0"
+    description: Kotlin-specific toolchain, project, and migration decision guidance.
   - name: development-delegation
     path: development/skill/development-delegation
     status: active
@@ -70,7 +97,7 @@ skills:
     deployment_role: router
     scenarios: [win-access-vba, win-android, wsl-python]
     deps: []
-    composed_of: [development-delegation, research-investigation, runtime-ops]
+    composed_of: [development-delegation, research-investigation, runtime-ops, kotlin-tooling]
     entrypoint: true
     version: "0.1.0"
     description: Thin router for selective loading of managed skill modules.
@@ -92,11 +119,11 @@ adapters:
     description: Planned SQL Server runtime adapter.
   - name: android-gradle
     path: development/skill/runtime-ops/adapters/android-gradle.md
-    status: planned
+    status: active
     owner_skill: runtime-ops
     environments: [win-android]
     version: "0.1.0"
-    description: Planned Android and Gradle runtime adapter.
+    description: Android and Gradle runtime adapter.
   - name: wsl-python
     path: development/skill/runtime-ops/adapters/wsl-python.md
     status: planned
