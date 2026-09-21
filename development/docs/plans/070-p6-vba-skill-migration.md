@@ -404,6 +404,49 @@ M1 不修改外部 MCP server。
 `Access runtime execution evidence: UNVERIFIED / accepted known limitation`。
 Access Eval runtime PASS 不再是 M6 的前置条件。
 
+M6 preflight（item 1）已于 2026-09-21 完成：对
+`C:\Users\tiany\.codex\skills` 的 deploy apply 返回 `ok:true`、
+`previous_snapshot:true`；紧接的 verify 返回 `ok:true`、`errors: []`。
+可恢复 snapshot：`C:\Users\tiany\.codex\.skills-global-skill-router-backup\previous`。
+
+M6 cutover 已于 2026-09-21 执行：legacy Skill 从
+`C:\Users\tiany\.codex\skills\vba-skill` 移至 discovery root 外的
+`C:\Users\tiany\.codex\vba-skill-p6-retired-20260921`；42 files / 17 directories
+完整保留（包含 `.git`），原路径已不存在，backup anchors 已确认存在，未删除内容。
+Cutover 后 managed verify 返回 `ok:true`、`errors: []`；对 skill root 的
+deterministic immediate-directory check 确认 router 存在、legacy 目录不存在。
+Targeted validation: **124 tests passed**；SaveAsText helper: **21 tests passed**。
+
+该目录检查不是 fresh Codex session：本次未实际执行新 session discovery，因而
+M6 item 5 与 M7 items 1/2 仍开放。M6 item 6 的 managed synthetic/dev
+smoke 已在下文记录；Access runtime 仍为
+`UNVERIFIED / accepted known limitation`，不得升级为 Runtime Verified。
+Rollback rehearsal（2026-09-21）已完成：将 exact backup 临时移回
+`C:\Users\tiany\.codex\skills\vba-skill`，确认 legacy discovery path 恢复，再将其
+移回同一 backup location 以恢复 cutover 状态。往返后 backup 仍保留 42 files /
+17 directories（包含 `.git`），原 discovery path 不存在。该证据证明 rollback
+path 可恢复；它不等价于 fresh session legacy discovery 验证。
+
+M6 synthetic/dev smoke evidence (2026-09-21): the managed
+runtime-ops/vba-office contract was used against only the repository fixtures
+references/access-vba-dev/test-fixtures/access/ArmostQuote_Test.accdb and
+references/access-vba-dev/test-fixtures/excel/Armost_Quote_Test.xlsm; no
+production or authoritative Office file was opened or changed. Access
+open_database plus module listing/read succeeded for the exact absolute fixture
+path; vba_parse parsed the retrieved modItemBusinessRules source (64 lines)
+and vba_inspect(hostLibraries=["access"], severity="warning") reported no
+issues. The documented no-argument Access candidate P6ManagedHwnd returned
+the provider's exact expression-resolution failure, so Access Runtime remains
+UNVERIFIED / accepted known limitation; this is not a provider or migration
+PASS. Excel safe inspection opened the exact fixture, listed/read its VBA
+modules, get_ribbon_xml returned no_custom_ui, and compile_vba_project returned
+status: "unverified" as required by the provider contract. A manual macro
+attempt while safe inspection was active was blocked by Excel's macro security
+setting; no runtime claim was made. Both fixtures were closed with save=false,
+and no fixture mutation was performed. These results supplement M5's existing
+Excel runtime/artifact evidence but do not provide fresh-session discovery
+evidence or upgrade the Access runtime state.
+
 1. 确认当前 deployed `global-skill-router` payload 与 source 一致；
 2. 记录 legacy Skill exact path；
 3. 将 legacy Skill directory 移到 skill discovery root 外的 reviewed backup location；
@@ -432,6 +475,10 @@ behavioral evidence.
 5. 记录仍受 fixture availability 限制、但不需要真实业务项目才能补齐的证据。
 
 M7 不修改用户级 AGENTS；其目标是证明迁移后的运行形态稳定并可恢复。
+
+当前 M7 evidence gate 仍开放：managed router-only synthetic/dev smoke 与
+rollback path 已有证据，但本次会话不是 fresh Codex session，未提供 M7
+items 1/2 要求的新 session discovery evidence。
 
 ## §9 文件修改范围
 
@@ -545,7 +592,9 @@ P6 只有同时满足以下条件才可改为 `done`：
 14. 至少一次 cutover rollback path 被验证可恢复 legacy Skill discovery。
 
 当前收尾状态：P6 仍为 `executing`，M5 已以 accepted Access runtime limitation
-收尾；M6/M7 尚未执行，且本次收尾不标记 P6 `done`。
+收尾；M6 preflight、legacy cutover、router-only synthetic/dev smoke 与 rollback
+path 已执行。M6/M7 仍只缺 fresh-session discovery evidence（M6 item 5 与
+M7 items 1/2），本次不标记 M6/M7 complete 或 P6 `done`。
 
 任何以下情况成立，P6 不得标 done：managed adapter 仍与 provider ABI 冲突；legacy Skill 退役后才发现唯一知识来源；managed bundle 缺失原 global AGENTS 已承载的 VBA hard guard；为了 parity 把整个 legacy SKILL 正文塞进 adapter；deploy manager 开始无界管理用户级配置；为完成迁移而触碰已投用 Access 项目；非 Office task 会预读 VBA bundle；或 verification claim 强度高于实际证据。
 
