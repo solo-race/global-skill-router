@@ -62,7 +62,7 @@ Providers: the deployed vba-doctor and vba-lint servers. Version: record the eng
 ### Compile, execution, dialogs
 
 - `compile_vba_project(file_name)` — **Excel only**; no `app_type` parameter. Verifies the requested workbook/VBProject is the VBE active project, dispatches the VBE CommandBars compile command, and returns `status: "unverified"`. The provider has no reliable compiler-result channel; dispatch never establishes Compile Verified.
-- `run_macro(file_name, macro_name, args=None, app_type="excel", timeout=10.0)` — runs in a worker; the implementation signature is authoritative even though a docstring says "default 3 seconds". Excel: `Application.Run` on `'WorkbookName'!MacroName`. Access: without args uses `Application.Eval("MacroName()")`; with args uses `Application.Run(macro_name, *args)`. The validated Access smoke harness is a **no-argument `Public Function` invoked through Eval** — do not substitute a parameterized macro or an ordinary `Public Sub`.
+- `run_macro(file_name, macro_name, args=None, app_type="excel", timeout=10.0)` — runs in a worker; the implementation signature is authoritative even though a docstring says "default 3 seconds". Excel: `Application.Run` on `'WorkbookName'!MacroName`. Access: without args uses `Application.Eval("MacroName()")`; with args uses `Application.Run(macro_name, *args)`. The Access smoke **candidate shape** is a **no-argument `Public Function` invoked through Eval**; current deployment evidence is unverified, so do not describe this shape as a validated Access runtime baseline, and do not substitute a parameterized macro or an ordinary `Public Sub`.
 - Timeout returns `{status: "running", request_id}`. Resolution sequence: `check_dialog(app_type="excel"` or `app_type="access", file_name=<database path>`)` → `dismiss_dialog(dialog_hwnd, button_text=<exact text>, input_text optional, entered before clicking)` (`button_text` required in practice) → `get_macro_result(request_id, app_type)` → report returned status/result/error. Structured dialog results only; `screenshot(save_path)` (Excel only) is optional visual evidence for layout/Ribbon appearance, never a substitute.
 - `check_dialog` authorizes only visible `#32770` dialogs owned by the selected Office window and process, recording owner HWND/PID and dialog identity. `dismiss_dialog` accepts only a discovered HWND and revalidates owner, process, class, contents, and child controls before every input/button mutation. Stale or mismatched provenance fails closed; stop for operator intervention instead of using foreground-window actions or generic desktop automation.
 - GitHub-token registry tools exist (get/set/list). Out of scope unless the task explicitly concerns GitHub token configuration; never place a returned token in logs or source files.
@@ -95,6 +95,13 @@ Hard guards:
 | Operator-observed | Explicit operator observation tied to the identified target and exercised action. | Static, Compile, or Runtime checks; authorization alone proves none of them. |
 
 `relations: []`. `unsupported`: [Access compile] — no registered Access operation. Excel compile dispatch is supported but its result remains unverified. Report every check individually as achieved or unverified, naming unsupported checks; no check implies another. Lint findings are advisory; a successful source write, clean lint, compile dispatch, or operator authorization alone is never compile/runtime evidence.
+
+Access runtime deployment note: the current environment has no verified
+execution evidence for the candidate no-argument `Public Function` path. If
+direct Access `Eval` and provider `run_macro` agree on an expression-resolution
+failure, report `Runtime: unverified / accepted known limitation`; do not infer
+that the provider, instance binding, marshal path, or trusted target is broken,
+and do not call the result Runtime Verified without fresh behavioral evidence.
 
 ## 7. Recovery model (repo-local text backup)
 

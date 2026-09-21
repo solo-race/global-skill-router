@@ -20,8 +20,9 @@ depends on their semantics; this workflow does not require a reference scan.
    record `compile dispatch: unverified`, never Compile Verified from that
    response. Runtime execution does not supply the missing compile result.
 4. Run the narrow entry point:
-   - Access: the validated baseline is a no-argument `Public Function` through
-     Eval. Return relevant form/record/control state, including
+   - Access: the candidate baseline is a no-argument `Public Function` through
+     Eval. Current deployment evidence may remain unverified; return relevant
+     form/record/control state, including
      Dirty/NewRecord/filter/current-record/focus when the claim needs it.
    - Excel: use a targeted macro against the identified workbook and observe
      the intended result/state. For Ribbon/layout work, XML or screenshot

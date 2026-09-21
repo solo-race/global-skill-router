@@ -265,7 +265,7 @@ development/skill/runtime-ops/
 | 不得无必要删除/替换 existing business module | modify workflow host guard |
 | 不得把普通 `Public Sub` / parameterized macro 当 Access baseline smoke | adapter Access execution semantics |
 | 多个 `Access.Application` 时不得猜 macro binding | adapter host/session identity + ownership |
-| validated Access path = no-arg `Public Function` via `Eval` | adapter execution semantics |
+| Access runtime candidate path = no-arg `Public Function` via `Eval`; deployment evidence remains unverified until direct/provider execution succeeds | adapter execution semantics |
 
 当前 global AGENTS 无 VBA 摘要的状态应保持不变。若某条确实适用于所有语言/宿主，应另行作为真正的通用规则评估；P6 不借 VBA migration 修改全局 working rules。实施验证只需确认 current AGENTS 未重新出现 VBA-specific tooling section，不需要读取或保存其历史文本。
 
@@ -293,6 +293,31 @@ development/skill/runtime-ops/
 - Excel compile command 结果单独记录为 `compile dispatch: unverified`；
 - Access runtime smoke 仍不得改写成 compile evidence；
 - Core 无需改变，因为 `runtime-ops` 已支持 `independent_checks` / 非线性报告语义。
+
+### M5-01 final Access runtime evidence state
+
+The U32 stop-loss probe closes the Access runtime investigation for this P6
+session. Two operator-prepared fixed files were opened as trusted databases
+with `AutomationSecurity=2`; their paths, HWNDs, and PIDs were distinct. On
+the same managed A instance, direct `Eval("P6ManagedHwnd()")` and the provider
+`run_macro(A, "P6ManagedHwnd")` path each failed once with the same Access
+function-name-not-found error. No copy/run-directory, VBE access, dynamic
+module mutation, or provider implementation change was involved.
+
+This is not Runtime Verified and is not evidence of a Microsoft bug. The
+accurate deployment state is:
+
+```text
+Access runtime execution evidence: UNVERIFIED / accepted known limitation
+```
+
+The direct/provider agreement supports treating the result as a current Access
+runtime/environment limitation rather than a migration-parity, instance-
+binding, marshal, Trusted Location, ACL, copy-method, or wrapper defect. The
+fixed files' sizes remained unchanged, but their mtimes changed during the
+run; report only that no planned VBA/module mutation occurred, not byte-level
+immutability. Do not reopen this investigation inside P6 unless a future task
+explicitly requests provider/runtime certification.
 
 如果实施时发现 Core validator 对 `independent_checks` 已有 contract 但测试缺口，则补 targeted validator regression；不得为了保留旧 VBA linear 文案去削弱 Core。
 
@@ -345,19 +370,19 @@ M1 不修改外部 MCP server。
 - planned adapters 仍不得受 VBA bundle 影响；
 - SaveAsText helper 的现有 regression 全部通过；
 - verification regression 明确拒绝把 Excel `status: unverified` 升级为 Compile Verified；
-- Access baseline smoke contract 保持 no-arg `Public Function` / Eval；
+- Access baseline candidate contract 保持 no-arg `Public Function` / Eval；deployment evidence remains `unverified` unless direct/provider execution succeeds；
 - deployment tests 仍证明 deploy manager 不自动删除 legacy Skill。
 
 不要增加“扫描每个 reference 内容是否完全相等”的脆弱 snapshot test。
 
-### M5 — Synthetic/dev-fixture parity Alpha
+### M5 — Synthetic/dev-fixture parity Alpha (M5 closed; Access runtime limitation accepted)
 
 当前没有近期 VBA 开发需求，既有 Access 项目已经收束并投入使用。P6 **禁止**把该项目或任何 production/authoritative Office 文件作为迁移验证对象；不得为了完成 Skill migration 重新打开业务开发面。
 
-使用 legacy Skill 作为知识对照、managed router 作为候选运行时，并仅在 controlled synthetic/dev fixtures 上执行需要真实 Office host 的验证。至少覆盖：
+使用 legacy Skill 作为知识对照、managed router 作为候选运行时，并仅在 controlled synthetic/dev fixtures 上执行需要真实 Office host 的验证。M5 的静态、合同、安全、exact-instance、marshal/fail-close、Excel artifact/runtime 与其它 parity/live evidence 已按本会话记录完成；M5-01 的 Access runtime 结果按 §7 关闭为 accepted limitation，不再作为迁移 STOP。至少覆盖：
 
 1. Access source read + lint/review；
-2. Access runtime diagnose：no-arg Public Function / Eval；
+2. Access runtime diagnose：以 no-arg Public Function / Eval 作为候选路径；当前部署若无法解析函数，必须报告 Runtime `unverified`，不得升级为 Runtime Verified；
 3. Access dev-fixture existing-module modify：read → backup → write → reread → lint → runtime/rollback；
 4. Access record navigation / focus / Dirty-NewRecord / DAO 中至少两个宿主知识案例，可由 synthetic source/fixture 驱动；
 5. Excel workbook/worksheet/range ownership review；
@@ -375,16 +400,26 @@ M1 不修改外部 MCP server。
 
 ### M6 — Legacy Skill cutover
 
-前提：M1–M5 全绿。
+前提：M1–M4 与其它 M5 parity/live cases 已通过；M5-01 已明确记录为
+`Access runtime execution evidence: UNVERIFIED / accepted known limitation`。
+Access Eval runtime PASS 不再是 M6 的前置条件。
 
 1. 确认当前 deployed `global-skill-router` payload 与 source 一致；
 2. 记录 legacy Skill exact path；
 3. 将 legacy Skill directory 移到 skill discovery root 外的 reviewed backup location；
 4. 不删除其内容，不修改其 Git history；
 5. 启动新的 Codex session / discovery context，确认顶层 catalog 不再出现 legacy VBA Skill；
-6. 仅使用 synthetic/dev Access + Excel fixture 运行最小 managed smoke；不得触碰已投用业务项目；
+6. 仅使用 synthetic/dev Access + Excel fixture 运行最小 managed smoke；不得触碰已投用业务项目。Access smoke 必须覆盖 router 正确选择 `runtime-ops + vba-office`、source read/static contract、production target/write guards 与 exact instance/path safety，并明确报告 Access Runtime `unverified`，不得制造 runtime claim；Excel 保留既有 runtime/artifact smoke；
 7. 在 current global AGENTS 已无 VBA 段的条件下确认 adapter hard guards 仍存在；
 8. 失败则立即把 legacy Skill 移回原 discovery path，并停止 cutover。
+
+### Deferred provider/environment follow-up — Access runtime expression-resolution / live-runtime certification
+
+This is a provider/environment follow-up, not a P6 migration gate. It may be
+reopened only by a future task that explicitly requests new Access runtime
+certification. It must not change the P6 evidence state, weaken identity or
+fail-close contracts, or be used to claim Runtime Verified without fresh direct
+behavioral evidence.
 
 ### M7 — Post-cutover closeout
 
@@ -440,7 +475,7 @@ Repository 外 cutover target 只有：
 - Excel `open_workbook` 的当前参数和 safe inspection 语义与 provider 一致；
 - Excel compile dispatch 只能产生 dispatch/unverified claim；
 - Access compile 仍显式 unsupported；
-- Access no-arg Eval path 与 parameterized path 区分；
+- Access no-arg Eval path 与 parameterized path 区分；当前部署的 Access Runtime 状态必须单独报告为 `unverified`，不得把 provider capability 或候选 smoke 形状写成 Runtime Verified；
 - Access/Excel session ownership 不依赖 foreground window；
 - dialog mutation 只使用 structured discovery 返回的 owned HWND；
 - lint hostLibraries casing/default/severity 与当前 provider contract 一致。
@@ -459,6 +494,7 @@ Repository 外 cutover target 只有：
 ### D. Runtime/cutover
 
 - legacy Skill 在 discovery root 外时，synthetic/dev Access/Excel task 仍命中 managed route；
+- Access runtime limitation 被显式报告为 `unverified`；不再要求 Access live Eval PASS 才能完成 migration；
 - global AGENTS 已无 VBA section 的当前基线下，managed adapter 仍施加 production/write/verification/operator constraints；
 - 已投用 Access 项目和其它 production/authoritative Office 文件不参与 P6 验证；
 - no-match session 不加载 VBA bundle；
@@ -500,13 +536,16 @@ P6 只有同时满足以下条件才可改为 `done`：
 5. duplicate tool-contract/profile 信息已按 D4/D5 收敛，不形成新的多份事实源。
 6. SaveAsText gate/helper 与 regression test 保留，混合 dump 不会被误送入 VBA parser。
 7. 用户级 global `AGENTS.md` 在 P6 开始前已无 VBA-specific tooling section；P6 未重新写入该段，且 managed bundle 已独立承接 §6 hard guards。
-8. legacy `vba-skill` 已移出顶层 Skill discovery，但有可逆退役副本；router-only synthetic/dev Office smoke 通过。
-9. Access/Excel mutation 仍要求 exact target、pre-read、recoverable path、reread、host-correct static analysis 与 targeted runtime evidence；production/authoritative target 未被默认授权。
+8. legacy `vba-skill` 已移出顶层 Skill discovery，但有可逆退役副本；router-only synthetic/dev Office smoke 通过；M5-01 的 Access runtime limitation 已显式记录且不被写成 PASS。
+9. Access/Excel mutation 仍要求 exact target、pre-read、recoverable path、reread、host-correct static analysis 与 targeted runtime evidence where available；Access Runtime 必须明确报告 `unverified`，production/authoritative target 未被默认授权。
 10. 已投用 Access 项目未作为 P6 fixture、smoke target 或 mutation target。
 11. operator-only boundary 保留；structured tooling 不可用时不会静默退化到 generic desktop interaction。
 12. router 的顶层 Skill 数仍为 1，no-match/其它 scenario 不预读 VBA workflow/reference。
 13. targeted tests、validator、deploy tests 与 relevant full validation 全绿；P1–P4 已有 contract 无回退。
 14. 至少一次 cutover rollback path 被验证可恢复 legacy Skill discovery。
+
+当前收尾状态：P6 仍为 `executing`，M5 已以 accepted Access runtime limitation
+收尾；M6/M7 尚未执行，且本次收尾不标记 P6 `done`。
 
 任何以下情况成立，P6 不得标 done：managed adapter 仍与 provider ABI 冲突；legacy Skill 退役后才发现唯一知识来源；managed bundle 缺失原 global AGENTS 已承载的 VBA hard guard；为了 parity 把整个 legacy SKILL 正文塞进 adapter；deploy manager 开始无界管理用户级配置；为完成迁移而触碰已投用 Access 项目；非 Office task 会预读 VBA bundle；或 verification claim 强度高于实际证据。
 
