@@ -1,4 +1,0 @@
-interface:
-  display_name: Research Investigation
-  short_description: Reconstruct reviewable, evidence-bound claims from accessible sources.
-  default_prompt: Load $research-investigation and choose the applicable profile before bounded discovery.

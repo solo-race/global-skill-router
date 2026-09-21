@@ -1,7 +1,0 @@
-scenario: win-access-vba
-skills:
-- name: runtime-ops
-  description: Operate declared host tools with capability, verification, and recovery
-    contracts.
-  skill_path: library/runtime-ops/SKILL.md
-  status: active

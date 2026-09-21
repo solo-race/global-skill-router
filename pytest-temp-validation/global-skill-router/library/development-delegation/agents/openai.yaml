@@ -1,4 +1,0 @@
-interface:
-  display_name: "Development Delegation"
-  short_description: "Plan and implement with supervision and review gates."
-  default_prompt: "Use $development-delegation to establish session supervision, plan the current phase as needed, and delegate implementation with validation and applicable review."

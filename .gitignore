@@ -13,12 +13,14 @@ references/**
 .pytest_cache/
 __pycache__/
 *.py[cod]
+pytest*
 
 ## ChatGPT operations
 .chatgpt/
 
 ## Temp cache
 .tmp/
+.tmp*
 
 ## Independent skill development repositories
 /development/skill-repos/*
