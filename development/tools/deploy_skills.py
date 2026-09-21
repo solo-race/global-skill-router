@@ -44,8 +44,9 @@ SCENARIO_SELECTORS = {
     "win-android": "windows android build/runtime",
     "wsl-python": "wsl python evidence/investigation",
 }
-ROUTE_INDEX_SCHEMA_VERSION = 2
+ROUTE_INDEX_SCHEMA_VERSION = 3
 LEGACY_ROUTE_INDEX_SCHEMA_VERSION = 1
+LEGACY_ROUTE_INDEX_SCHEMA_V2 = 2
 
 
 class DeploymentError(RuntimeError):
@@ -120,8 +121,40 @@ def _library_skill_path(value: object, label: str) -> PurePosixPath:
     return path
 
 
+def _library_adapter_path(value: object, label: str, owner: str, name: str) -> PurePosixPath:
+    """Validate a v3 router-relative adapter path for one module owner."""
+
+    if not isinstance(value, str) or not value.strip():
+        raise DeploymentError(f"{label} must be a non-empty POSIX path")
+    if "\\" in value or value.startswith("/") or len(value) >= 2 and value[1] == ":":
+        raise DeploymentError(f"{label} must be router-relative POSIX path: {value!r}")
+    path = PurePosixPath(value)
+    if path.is_absolute() or ".." in path.parts or "." in path.parts:
+        raise DeploymentError(f"{label} must not be absolute or contain dot segments: {value!r}")
+    expected = f"library/{owner}/adapters/{name}.md"
+    if path.as_posix() != expected:
+        raise DeploymentError(f"{label} must be {expected!r}")
+    return path
+
+
+def _validate_adapter_environment(adapter_path: Path, adapter_name: str, scenario: str) -> None:
+    """Require a deployed adapter contract to declare the shard scenario."""
+
+    frontmatter, _, parse_error = validate_skills._read_frontmatter_document(adapter_path)
+    if parse_error or not isinstance(frontmatter, dict):
+        detail = parse_error or "frontmatter must be a mapping"
+        raise DeploymentError(
+            f"route adapter frontmatter is invalid for {adapter_name}: {detail}"
+        )
+    environments = frontmatter.get("environments")
+    if not isinstance(environments, list) or scenario not in environments:
+        raise DeploymentError(
+            f"route adapter {adapter_name} frontmatter environments do not include scenario {scenario!r}"
+        )
+
+
 def _validate_route_index(index: object, router_root: Path) -> set[str]:
-    """Validate route-index v2, accepting v1 only for installed-payload recovery."""
+    """Validate route-index v3, accepting v1/v2 for installed-payload recovery."""
 
     if not isinstance(index, dict):
         raise DeploymentError("route index must be a mapping")
@@ -130,7 +163,7 @@ def _validate_route_index(index: object, router_root: Path) -> set[str]:
         if set(index) != {"schema_version", "scenarios"}:
             raise DeploymentError("legacy route index must contain only schema_version and scenarios")
         global_routes = []
-    elif schema_version == ROUTE_INDEX_SCHEMA_VERSION:
+    elif schema_version in (LEGACY_ROUTE_INDEX_SCHEMA_V2, ROUTE_INDEX_SCHEMA_VERSION):
         if set(index) != {"schema_version", "global_routes", "scenarios"}:
             raise DeploymentError("route index must contain only schema_version, global_routes, and scenarios")
         global_routes = index.get("global_routes")
@@ -185,10 +218,16 @@ def _validate_route_index(index: object, router_root: Path) -> set[str]:
         shard = _read_yaml(shard_path, path.as_posix())
         if not isinstance(shard, dict) or shard.get("scenario") != name or not isinstance(shard.get("skills"), list):
             raise DeploymentError(f"route shard structure is invalid: {path.as_posix()}")
+        if schema_version == ROUTE_INDEX_SCHEMA_VERSION and set(shard) != {"scenario", "skills"}:
+            raise DeploymentError(f"v3 route shard fields are invalid: {path.as_posix()}")
+        candidate_names: set[str] = set()
         for candidate in shard["skills"]:
             if not isinstance(candidate, dict):
                 raise DeploymentError(f"route candidate is invalid: {path.as_posix()}")
             candidate_name = candidate.get("name")
+            if not isinstance(candidate_name, str) or not candidate_name.strip() or candidate_name in candidate_names:
+                raise DeploymentError(f"route candidate has invalid or duplicate name: {candidate_name!r}")
+            candidate_names.add(candidate_name)
             if candidate_name in global_names:
                 raise DeploymentError(f"global route duplicated in scenario shard: {candidate_name!r}")
             skill_path = _library_skill_path(
@@ -199,6 +238,68 @@ def _validate_route_index(index: object, router_root: Path) -> set[str]:
                 raise DeploymentError(f"route skill path is missing: {skill_path.as_posix()}")
             if candidate.get("status") != "active":
                 raise DeploymentError(f"planned route candidate is executable: {candidate_name}")
+            if schema_version != ROUTE_INDEX_SCHEMA_VERSION:
+                continue
+            if set(candidate) != {"name", "description", "skill_path", "status", "adapters"}:
+                raise DeploymentError(
+                    f"v3 route candidate fields are invalid: {candidate_name!r}"
+                )
+            expected_skill_path = f"library/{candidate_name}/SKILL.md"
+            if skill_path.as_posix() != expected_skill_path:
+                raise DeploymentError(
+                    f"v3 route skill path for {candidate_name} must be {expected_skill_path!r}"
+                )
+            description = candidate.get("description")
+            if not isinstance(description, str) or not description.strip():
+                raise DeploymentError(f"route candidate description is invalid: {candidate_name!r}")
+            adapters = candidate.get("adapters")
+            if not isinstance(adapters, list):
+                raise DeploymentError(f"route candidate adapters must be a list: {candidate_name!r}")
+            adapter_names: set[str] = set()
+            for adapter in adapters:
+                if not isinstance(adapter, dict) or set(adapter) != {
+                    "name",
+                    "description",
+                    "adapter_path",
+                    "status",
+                }:
+                    raise DeploymentError(
+                        f"v3 route adapter fields are invalid: {candidate_name!r}"
+                    )
+                adapter_name = adapter.get("name")
+                if (
+                    not isinstance(adapter_name, str)
+                    or not adapter_name.strip()
+                    or adapter_name in adapter_names
+                ):
+                    raise DeploymentError(
+                        f"route adapter has invalid or duplicate name: {adapter_name!r}"
+                    )
+                adapter_names.add(adapter_name)
+                adapter_description = adapter.get("description")
+                if not isinstance(adapter_description, str) or not adapter_description.strip():
+                    raise DeploymentError(
+                        f"route adapter description is invalid: {adapter_name!r}"
+                    )
+                if adapter.get("status") != "active":
+                    raise DeploymentError(
+                        f"planned route adapter is executable: {adapter_name}"
+                    )
+                adapter_path = _library_adapter_path(
+                    adapter.get("adapter_path"),
+                    f"route adapter path for {adapter_name}",
+                    candidate_name,
+                    adapter_name,
+                )
+                if not router_root.joinpath(*adapter_path.parts).is_file():
+                    raise DeploymentError(
+                        f"route adapter path is missing: {adapter_path.as_posix()}"
+                    )
+                _validate_adapter_environment(
+                    router_root.joinpath(*adapter_path.parts),
+                    adapter_name,
+                    name,
+                )
 
     if seen_names != set(SCENARIOS):
         raise DeploymentError("route index scenarios do not match the fixed vocabulary")
@@ -298,6 +399,25 @@ def _planned_adapter_files(data: dict) -> dict[str, set[str]]:
     return planned
 
 
+def _active_adapters(data: dict, owner: str, scenario: str) -> list[dict]:
+    """Return active adapters closed over one module owner and scenario."""
+
+    adapters = []
+    for entry in data.get("adapters", []):
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("status") != "active" or entry.get("owner_skill") != owner:
+            continue
+        environments = entry.get("environments")
+        if not isinstance(environments, list) or scenario not in environments:
+            continue
+        name = entry.get("name")
+        if not isinstance(name, str) or not name.strip():
+            continue
+        adapters.append(entry)
+    return sorted(adapters, key=lambda entry: str(entry.get("name", "")))
+
+
 def _copy_module_source(source: Path, destination: Path, planned_files: set[str]) -> None:
     """Copy a module while excluding only manifest-registered planned adapters."""
 
@@ -354,12 +474,22 @@ def _route_payloads(data: dict, root: Path, router_root: Path) -> tuple[dict, di
             if entry.get("entrypoint") is not True:
                 continue
             module_root = _entry_path(root, entry)
+            adapters = [
+                {
+                    "name": adapter["name"],
+                    "description": str(adapter.get("description", "")).strip(),
+                    "adapter_path": f"library/{name}/adapters/{adapter['name']}.md",
+                    "status": "active",
+                }
+                for adapter in _active_adapters(data, name, scenario)
+            ]
             candidates.append(
                 {
                     "name": name,
                     "description": _short_description(module_root, entry),
                     "skill_path": f"library/{name}/SKILL.md",
                     "status": "active",
+                    "adapters": adapters,
                 }
             )
         payload = {"scenario": scenario, "skills": candidates}

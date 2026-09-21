@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
+import shutil
 from pathlib import Path
 
 import pytest
@@ -39,15 +41,23 @@ def _write_skill(root: Path, name: str, *, role: str, description: str | None = 
     return skill
 
 
-def _write_adapter(root: Path, owner: str, name: str, *, status: str = "active") -> Path:
+def _write_adapter(
+    root: Path,
+    owner: str,
+    name: str,
+    *,
+    status: str = "active",
+    environments: list[str] | None = None,
+) -> Path:
     adapter_dir = root / "development" / "skill" / owner / "adapters"
     adapter_dir.mkdir(parents=True, exist_ok=True)
     path = adapter_dir / f"{name}.md"
+    environments = environments or ["wsl-python"]
     path.write_text(
         "---\n"
         "adapter_schema_version: 1\n"
         f"adapter: {name}\n"
-        "environments: [wsl-python]\n"
+        f"environments: [{', '.join(environments)}]\n"
         "capabilities: [source.read]\n"
         "task_modes:\n"
         "  closed: false\n"
@@ -336,7 +346,7 @@ def test_route_index_paths_selectors_and_self_validation(tmp_path):
     index = yaml.safe_load(index_path.read_text(encoding="utf-8"))
 
     assert deploy_skills._validate_route_index(index, payload["payload_root"])
-    assert index["schema_version"] == 2
+    assert index["schema_version"] == 3
     assert index["global_routes"] == []
     assert {item["name"] for item in index["scenarios"]} == set(SCENARIOS)
     for item in index["scenarios"]:
@@ -385,6 +395,161 @@ def test_planned_adapter_file_is_excluded_from_assembled_payload(tmp_path):
     assert "planned-adapter" not in route_text
 
 
+def test_v3_route_contains_active_adapters_with_owner_and_scenario_closure(tmp_path):
+    manifest, module_names = _fixture_repo(tmp_path, adapter_fixture=True)
+    registry = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    second_active = _write_adapter(tmp_path / "repo", module_names[0], "second-adapter")
+    other_owner = _write_adapter(tmp_path / "repo", module_names[1], "other-owner")
+    android_only = _write_adapter(
+        tmp_path / "repo", module_names[0], "android-only", environments=["win-android"]
+    )
+    for name, path, owner, environments in (
+        ("second-adapter", second_active, module_names[0], ["wsl-python"]),
+        ("other-owner", other_owner, module_names[1], ["wsl-python"]),
+        ("android-only", android_only, module_names[0], ["win-android"]),
+    ):
+        registry["adapters"].append(
+            {
+                "name": name,
+                "path": path.relative_to(tmp_path / "repo").as_posix(),
+                "status": "active",
+                "owner_skill": owner,
+                "environments": environments,
+                "version": "0.1.0",
+                "description": f"{name} adapter fixture.",
+            }
+        )
+    manifest.write_text(yaml.safe_dump(registry, sort_keys=False), encoding="utf-8")
+
+    payload = _build(manifest, tmp_path / "staging")
+    shard = yaml.safe_load(
+        (payload["payload_root"] / "_platform" / "routes" / "wsl-python.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    module_zero = next(item for item in shard["skills"] if item["name"] == module_names[0])
+    module_one = next(item for item in shard["skills"] if item["name"] == module_names[1])
+
+    assert [item["name"] for item in module_zero["adapters"]] == [
+        "active-adapter",
+        "second-adapter",
+    ]
+    assert module_zero["adapters"][0] == {
+        "name": "active-adapter",
+        "description": "Active adapter fixture.",
+        "adapter_path": f"library/{module_names[0]}/adapters/active-adapter.md",
+        "status": "active",
+    }
+    assert [item["name"] for item in module_one["adapters"]] == ["other-owner"]
+    assert all(item["name"] != "android-only" for item in module_zero["adapters"])
+    assert deploy_skills._validate_route_index(
+        yaml.safe_load(
+            (payload["payload_root"] / "_platform" / "routes" / "index.yaml").read_text(
+                encoding="utf-8"
+            )
+        ),
+        payload["payload_root"],
+    )
+
+
+@pytest.mark.parametrize(
+    ("mutator", "message"),
+    [
+        (lambda adapter: adapter.update(status="planned"), "planned route adapter"),
+        (lambda adapter: adapter.update(adapter_path="library/module-00/adapters/../escape.md"), "must not be absolute or contain dot segments"),
+        (lambda adapter: adapter.update(adapter_path="library/module-00/adapters/other.md"), "must be 'library/module-00/adapters/active-adapter.md'"),
+        (lambda adapter: adapter.update(description=""), "description is invalid"),
+    ],
+)
+def test_v3_route_rejects_invalid_nested_adapter_mapping(tmp_path, mutator, message):
+    manifest, _ = _fixture_repo(tmp_path, adapter_fixture=True)
+    payload = _build(manifest, tmp_path / "staging")
+    index_path = payload["payload_root"] / "_platform" / "routes" / "index.yaml"
+    index = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+    shard_path = payload["payload_root"] / "_platform" / "routes" / "wsl-python.yaml"
+    shard = yaml.safe_load(shard_path.read_text(encoding="utf-8"))
+    candidate = next(item for item in shard["skills"] if item["name"] == "module-00")
+    mutator(candidate["adapters"][0])
+    shard_path.write_text(yaml.safe_dump(shard, sort_keys=False), encoding="utf-8")
+
+    with pytest.raises(deploy_skills.DeploymentError, match=message):
+        deploy_skills._validate_route_index(index, payload["payload_root"])
+
+
+def test_v3_route_rejects_duplicate_nested_adapter_names(tmp_path):
+    manifest, _ = _fixture_repo(tmp_path, adapter_fixture=True)
+    payload = _build(manifest, tmp_path / "staging")
+    index_path = payload["payload_root"] / "_platform" / "routes" / "index.yaml"
+    index = yaml.safe_load(index_path.read_text(encoding="utf-8"))
+    shard_path = payload["payload_root"] / "_platform" / "routes" / "wsl-python.yaml"
+    shard = yaml.safe_load(shard_path.read_text(encoding="utf-8"))
+    candidate = next(item for item in shard["skills"] if item["name"] == "module-00")
+    candidate["adapters"].append(dict(candidate["adapters"][0]))
+    shard_path.write_text(yaml.safe_dump(shard, sort_keys=False), encoding="utf-8")
+
+    with pytest.raises(deploy_skills.DeploymentError, match="duplicate name"):
+        deploy_skills._validate_route_index(index, payload["payload_root"])
+
+
+def test_v3_route_rejects_unknown_shard_fields(tmp_path):
+    manifest, _ = _fixture_repo(tmp_path, adapter_fixture=True)
+    payload = _build(manifest, tmp_path / "staging")
+    index = yaml.safe_load(
+        (payload["payload_root"] / "_platform" / "routes" / "index.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    shard_path = payload["payload_root"] / "_platform" / "routes" / "wsl-python.yaml"
+    shard = yaml.safe_load(shard_path.read_text(encoding="utf-8"))
+    shard["unexpected"] = True
+    shard_path.write_text(yaml.safe_dump(shard, sort_keys=False), encoding="utf-8")
+
+    with pytest.raises(deploy_skills.DeploymentError, match="v3 route shard fields"):
+        deploy_skills._validate_route_index(index, payload["payload_root"])
+
+
+def test_v3_route_rejects_canonical_adapter_for_wrong_scenario(tmp_path):
+    manifest, _ = _fixture_repo(tmp_path, adapter_fixture=True)
+    payload = _build(manifest, tmp_path / "staging")
+    index = yaml.safe_load(
+        (payload["payload_root"] / "_platform" / "routes" / "index.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    shard_path = payload["payload_root"] / "_platform" / "routes" / "win-android.yaml"
+    shard_path.write_text(
+        yaml.safe_dump(
+            {
+                "scenario": "win-android",
+                "skills": [
+                    {
+                        "name": "module-00",
+                        "description": "module-00 route.",
+                        "skill_path": "library/module-00/SKILL.md",
+                        "status": "active",
+                        "adapters": [
+                            {
+                                "name": "active-adapter",
+                                "description": "Active adapter fixture.",
+                                "adapter_path": "library/module-00/adapters/active-adapter.md",
+                                "status": "active",
+                            }
+                        ],
+                    }
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        deploy_skills.DeploymentError,
+        match="frontmatter environments do not include scenario 'win-android'",
+    ):
+        deploy_skills._validate_route_index(index, payload["payload_root"])
+
+
 def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_path):
     payload = _build(deploy_skills.DEFAULT_MANIFEST, tmp_path / "staging")
     runtime_ops = payload["payload_root"] / "library" / "runtime-ops"
@@ -403,7 +568,8 @@ def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_pa
     ]
     assert not (runtime_ops / "adapters" / "gpt-repo-local.md").exists()
     assert (runtime_ops / "adapters" / "vba-office.md").is_file()
-    for planned_name in ("sql-server.md", "android-gradle.md", "wsl-python.md"):
+    assert (runtime_ops / "adapters" / "android-gradle.md").is_file()
+    for planned_name in ("sql-server.md", "wsl-python.md"):
         assert not (runtime_ops / "adapters" / planned_name).exists()
 
     for scenario in SCENARIOS:
@@ -414,12 +580,9 @@ def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_pa
         )
         names = [item["name"] for item in shard["skills"]]
         assert "development-delegation" not in names
-        if scenario != "win-access-vba":
+        if scenario == "wsl-python":
             assert "runtime-ops" not in names
-            expected = []
-            if scenario == "wsl-python":
-                expected.append("research-investigation")
-            assert names == expected
+            assert names == ["research-investigation"]
             continue
         runtime_entry = next(
             item for item in shard["skills"] if item["name"] == "runtime-ops"
@@ -428,10 +591,114 @@ def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_pa
         assert runtime_entry["skill_path"] == "library/runtime-ops/SKILL.md"
         assert runtime_entry["status"] == "active"
         assert runtime_entry["description"]
+        adapter_name, adapter_description = {
+            "win-access-vba": ("vba-office", "Microsoft Office VBA runtime adapter."),
+            "win-android": ("android-gradle", "Android and Gradle runtime adapter."),
+        }[scenario]
+        assert runtime_entry["adapters"] == [
+            {
+                "name": adapter_name,
+                "description": adapter_description,
+                "adapter_path": f"library/runtime-ops/adapters/{adapter_name}.md",
+                "status": "active",
+            }
+        ]
 
     target_root = tmp_path / "skills"
     deploy_skills.apply_payload(target_root, payload)
     assert sorted(path.name for path in target_root.iterdir()) == ["global-skill-router"]
+
+
+def test_p5_gradle_contract_and_source_independent_deployment(tmp_path):
+    # Copy only managed artifacts: optional reference checkouts are absent.
+    candidate_root = tmp_path / "candidate"
+    candidate_skills = candidate_root / "development" / "skill"
+    shutil.copytree(deploy_skills.DEFAULT_MANIFEST.parent, candidate_skills)
+    manifest_path = candidate_skills / "manifest.yaml"
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    runtime = next(item for item in manifest["skills"] if item["name"] == "runtime-ops")
+    kotlin = next(item for item in manifest["skills"] if item["name"] == "kotlin-tooling")
+    adapter = next(item for item in manifest["adapters"] if item["name"] == "android-gradle")
+    assert adapter["status"] == "active"
+    assert "win-android" in runtime["scenarios"]
+    assert kotlin == {
+        "name": "kotlin-tooling",
+        "path": "development/skill/kotlin-tooling",
+        "status": "active",
+        "deployment_role": "module",
+        "routing_scope": "scenario",
+        "scenarios": ["win-android"],
+        "deps": [],
+        "composed_of": [],
+        "entrypoint": True,
+        "version": "0.1.0",
+        "description": "Kotlin-specific toolchain, project, and migration decision guidance.",
+    }
+
+    contract_path = candidate_root / adapter["path"]
+    contract = contract_path.read_text(encoding="utf-8")
+    frontmatter = yaml.safe_load(contract.split("---", 2)[1])
+    assert frontmatter["adapter_schema_version"] == 1
+    assert frontmatter["adapter"] == adapter["name"]
+    assert frontmatter["environments"] == adapter["environments"] == ["win-android"]
+    assert frontmatter["mutation_support"] == "bounded"
+    assert frontmatter["verification_model_kind"] == "independent_checks"
+    models = [
+        yaml.safe_load(block)
+        for block in re.findall(r"```yaml\n(.*?)\n```", contract, re.DOTALL)
+    ]
+    model = next(block["verification_model"] for block in models if "verification_model" in block)
+    assert model["kind"] == frontmatter["verification_model_kind"]
+    assert model["relations"] == []
+    states = {state["id"]: state for state in model["states"]}
+    assert set(states) == {
+        "configuration_resolved", "requested_tasks_succeeded", "requested_tests_passed"
+    }
+    assert all(state["required_evidence"] and state["does_not_prove"] for state in states.values())
+    assert any(item["id"] == "target_runtime_exercised" and item["reason"] for item in model["unsupported"])
+    assert not (candidate_root / "development" / "skill-repos").exists()
+
+    kotlin_contract_path = candidate_root / kotlin["path"] / "SKILL.md"
+    assert kotlin_contract_path.is_file()
+    kotlin_contract = kotlin_contract_path.read_text(encoding="utf-8")
+    assert "pure Gradle" in kotlin_contract
+    assert "runtime-ops" in kotlin_contract
+    assert "Do not guess" in kotlin_contract
+
+    payload = _build(manifest_path, tmp_path / "p5-stage")
+    relative_adapter = "library/runtime-ops/adapters/android-gradle.md"
+    routes = payload["payload_root"] / "_platform" / "routes"
+    android = yaml.safe_load((routes / "win-android.yaml").read_text(encoding="utf-8"))
+    runtime_route = next(item for item in android["skills"] if item["name"] == "runtime-ops")
+    kotlin_route = next(item for item in android["skills"] if item["name"] == "kotlin-tooling")
+    assert runtime_route["adapters"] == [{
+        "name": "android-gradle",
+        "description": adapter["description"],
+        "adapter_path": relative_adapter,
+        "status": "active",
+    }]
+    assert kotlin_route["name"] == "kotlin-tooling"
+    assert kotlin_route["description"]
+    assert kotlin_route["skill_path"] == "library/kotlin-tooling/SKILL.md"
+    assert kotlin_route["status"] == "active"
+    assert kotlin_route["adapters"] == []
+    assert all(
+        skill["name"] != "kotlin-tooling"
+        for scenario in ("win-access-vba", "wsl-python")
+        for skill in yaml.safe_load((routes / f"{scenario}.yaml").read_text(encoding="utf-8"))["skills"]
+    )
+    for scenario in ("win-access-vba", "wsl-python"):
+        shard = yaml.safe_load((routes / f"{scenario}.yaml").read_text(encoding="utf-8"))
+        assert all(
+            mapped["name"] != "android-gradle"
+            for skill in shard["skills"] for mapped in skill.get("adapters", [])
+        )
+    target = tmp_path / "p5-target"
+    assert deploy_skills.apply_payload(target, payload)["action"] == "applied"
+    assert deploy_skills.verify_target(target)["ok"]
+    deployed = target / "global-skill-router" / relative_adapter
+    assert deployed.read_bytes() == contract_path.read_bytes()
+    assert not any("skill-repos" in path.parts for path in target.rglob("*"))
 
 
 def test_route_index_rejects_invalid_global_skill_path(tmp_path):
@@ -456,6 +723,24 @@ def test_legacy_v1_route_index_remains_verifiable_for_recovery(tmp_path):
     )
     index["schema_version"] = 1
     index.pop("global_routes")
+    assert deploy_skills._validate_route_index(index, payload["payload_root"])
+
+
+def test_legacy_v2_route_index_remains_verifiable_for_recovery(tmp_path):
+    manifest, _ = _fixture_repo(tmp_path)
+    payload = _build(manifest, tmp_path / "staging")
+    index = yaml.safe_load(
+        (payload["payload_root"] / "_platform" / "routes" / "index.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    index["schema_version"] = 2
+    for scenario in index["scenarios"]:
+        shard_path = payload["payload_root"] / "_platform" / "routes" / f"{scenario['name']}.yaml"
+        shard = yaml.safe_load(shard_path.read_text(encoding="utf-8"))
+        for candidate in shard["skills"]:
+            candidate.pop("adapters", None)
+        shard_path.write_text(yaml.safe_dump(shard, sort_keys=False), encoding="utf-8")
     assert deploy_skills._validate_route_index(index, payload["payload_root"])
 
 
