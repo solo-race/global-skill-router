@@ -1,6 +1,6 @@
 # P5 Gradle / Kotlin Runtime Integration 与路由架构修复 — 精细实施计划
 
-Status: draft
+Status: done
 Date: 2026-09-20
 Depends-on: 000-platform-skeleton, 030-p2-runtime-ops, 040-p3-control-integration, 050-p4-selective-discovery-deployment
 
