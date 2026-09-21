@@ -54,7 +54,7 @@ For heavier skills, extend toward the five-layer stack reviewed in `architecture
 
 **Python scripts** (stdlib-first — third-party imports only where declared in AGENTS.md Core Rule 5; external systems accessed via subprocess/MCP):
 
-- Shebang `#!/usr/bin/env python3` + module docstring; no type annotations; conservative Python 3.8+ compatibility.
+- Shebang `#!/usr/bin/env python3` + module docstring; use annotations supported by Python 3.9+.
 - `parse_args()` builds argparse; flag conflicts validated post-parse via `parser.error(...)`.
 - Subprocess failures wrapped in a custom error class carrying formatted stdout/stderr.
 - Output contract: one JSON document via `sys.stdout.write(json.dumps(..., indent=2, sort_keys=True))`; long-running modes stream JSONL with explicit `flush()`. Errors → stderr, exit 1; `KeyboardInterrupt` → exit 130.
@@ -73,8 +73,8 @@ For heavier skills, extend toward the five-layer stack reviewed in `architecture
 
 ## Runtime/Tooling Preferences
 
-- Python 3 (scripts assume ≥3.8 APIs; no version pin file exists). `gh` CLI required by the two scripted reference skills; declared third-party dependency: PyYAML (manifest/frontmatter parsing for `tools/validate_skills.py` and route generation for `tools/deploy_skills.py`).
-- No git history/config, no package manager, no formatter/linter config — do not introduce tooling speculatively; keep the repo minimal.
+- Python 3.9+ managed by uv; run `uv sync` before executing repository tools. `gh` CLI required by the two scripted reference skills; declared third-party dependency: PyYAML (manifest/frontmatter parsing for `tools/validate_skills.py` and route generation for `tools/deploy_skills.py`).
+- No git history/config, formatter/linter config — do not introduce tooling speculatively; keep the repo minimal.
 - Command paths inside reference SKILL.md files address the upstream Codex checkout (`.codex/skills/…`); substitute `references/SpineCodex-skills/` locally. Some referenced validation targets do not exist in this repo — they belong upstream.
 
 ## Deployment and Runtime Mapping
@@ -114,7 +114,7 @@ For heavier skills, extend toward the five-layer stack reviewed in `architecture
 - **Planned exclusion:** planned Skills and adapters are registration records, not runtime
   capabilities, even if a development directory happens to exist. Planned entries never enter
   route shards or `library/`.
-- **Managed operations:** the standard commands are `py -3 development/tools/deploy_skills.py`
+- **Managed operations:** the standard commands are `uv run python development/tools/deploy_skills.py`
   (read-only plan), `--apply`, `--verify`, and `--rollback`; pass `--target-root PATH` for a
   controlled user/project skill root. Apply stages a complete payload, keeps at most one
   tool-owned previous snapshot beside the target root, verifies hashes/layout/routes, and

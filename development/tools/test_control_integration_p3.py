@@ -182,13 +182,20 @@ def test_runtime_adapter_contract_reuse_is_scoped_and_invalidated():
     assert "read zero scenario shards" in router
     assert "Never read a second scenario shard" in router
     assert "smallest matching\n   module set" in router
+    assert "adapter-free\n   candidate is valid" in router
+    assert "require exactly one match" in router
+    assert "adapter ambiguity before reading any adapter" in router
     assert "Never scan `library/`" in router
+
+    assert "compare active mapping descriptions with task and host/toolchain evidence" in runtime
+    assert "require exactly one match" in runtime
+    assert "Use `adapter_path` only to locate the uniquely selected contract" in runtime
 
 
 def test_real_manifest_v3_is_green_and_routes_are_explicit():
     report = validate_skills.validate(validate_skills.DEFAULT_MANIFEST)
     assert report["ok"] is True, report["errors"]
-    assert report["sources_checked"] == 4
+    assert report["sources_checked"] == 6
     assert report["adapters_checked"] == 4
     assert report["routes"]["global"]["skills"] == [
         {"name": "development-delegation", "status": "active"},
@@ -199,13 +206,15 @@ def test_real_manifest_v3_is_green_and_routes_are_explicit():
     ]
     assert report["routes"]["win-android"]["skills"] == [
         {"name": "global-skill-router", "status": "active"},
+        {"name": "kotlin-tooling", "status": "active"},
+        {"name": "runtime-ops", "status": "active"},
     ]
     assert report["routes"]["win-access-vba"]["adapters"] == [
         {"name": "sql-server", "owner_skill": "runtime-ops", "status": "planned"},
         {"name": "vba-office", "owner_skill": "runtime-ops", "status": "active"},
     ]
     assert report["routes"]["win-android"]["adapters"] == [
-        {"name": "android-gradle", "owner_skill": "runtime-ops", "status": "planned"},
+        {"name": "android-gradle", "owner_skill": "runtime-ops", "status": "active"},
     ]
     assert report["routes"]["wsl-python"]["skills"] == [
         {"name": "global-skill-router", "status": "active"},

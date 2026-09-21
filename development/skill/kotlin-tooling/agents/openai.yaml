@@ -1,0 +1,5 @@
+interface:
+  display_name: Kotlin Tooling
+  short_description: Classify Kotlin Toolchain, KMP, and AGP decisions without duplicating Gradle execution.
+  default_prompt: Load $kotlin-tooling for Kotlin-specific project classification, toolchain guidance, or migration decisions; use runtime-ops for execution.
+

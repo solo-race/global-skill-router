@@ -11,7 +11,8 @@ this page must not be edited as a second route registry.
 | `global` | Execute an existing implementation/acceptance contract | `development-delegation` | active |
 | `win-access-vba` | Host/tool inspection, mutation, and testing | `runtime-ops` + `vba-office` | active |
 | `win-access-vba` | SQL Server runtime operations | `runtime-ops` + `sql-server` | planned; no adapter capability yet |
-| `win-android` | Android/Gradle runtime operations | `runtime-ops` + `android-gradle` | planned; no adapter capability yet |
+| `win-android` | Android/Gradle runtime operations | `runtime-ops` + `android-gradle` | active |
+| `win-android` | Kotlin Toolchain, KMP, and AGP-specific decisions | `kotlin-tooling` | active |
 | `wsl-python` | Evidence-first external investigation | `research-investigation` + selected profile | active |
 | `wsl-python` | WSL/Python runtime operations | `runtime-ops` + `wsl-python` | planned; no adapter capability yet |
 
@@ -26,7 +27,7 @@ this page must not be edited as a second route registry.
   never from the process current working directory or source repository root.
 - A `planned` route records an extension point only. It does not authorize a tool call or
   claim that the capability is available.
-- `wsl-python` currently selects only the research control plane; `win-android` has no
-  active scenario module route. Their scenario-specific runtime adapters remain planned.
+- `wsl-python` currently selects only the research control plane; its scenario-specific
+  runtime adapter remains planned. `win-android` selects `runtime-ops` with `android-gradle`.
 - Adapters are owner-contained under `runtime-ops` and are deployed with that Skill; they
   are not independently installable top-level Skills.

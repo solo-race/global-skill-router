@@ -31,8 +31,18 @@ Do not probe alternate roots after a failed relative read.
    routing is plausible but the scenario cannot be resolved, report
    `ROUTE_AMBIGUOUS` instead of reading multiple shards.
 5. Read only that scenario's registered shard, choose the smallest matching
-   module set (normally one module), then read each selected
-   `library/<module>/SKILL.md` relative to `router_root`.
+   module set (normally one module), then load each selected module from its
+   `skill_path`. The v3 `adapters` mapping is optional: an adapter-free
+   candidate is valid and the module may be used without an adapter when the
+   task needs no external host/tool capability. If the task does require an
+   adapter, compare active mapping descriptions with the task and host/toolchain
+   evidence and require exactly one match. Report adapter unavailable when
+   there is no match, or adapter ambiguity before reading any adapter when
+   multiple mappings match. Only after a unique match is selected, resolve its
+   `adapter_path` relative to `router_root` and read that adapter contract.
+   Do not enumerate `library/` or `adapters/` to discover alternatives. A
+   legacy v1/v2 shard may omit adapter mappings; keep the module route usable
+   but report the adapter as unavailable if the operation requires one.
 6. Reuse a selected module while reliably loaded and unchanged in the current
    task scope. Follow that module's load/reuse rules for profiles, adapters, and
    references.
