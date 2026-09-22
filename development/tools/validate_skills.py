@@ -2,7 +2,7 @@
 """Skill registry validator for development/skill/manifest.yaml.
 
 Checks the registry against the P4 manifest/control contract. The current
-manifest schema is v3: non-deployment sources, deployable skills, and
+manifest schema is v4: non-deployment sources, deployable skills, and
 framework-owned adapters have separate registry sections. Planned entries may
 be forward-registered before their directory exists; active entries must pass
 their complete activation gates.
@@ -36,6 +36,7 @@ LIST_FIELDS = ("scenarios", "deps", "composed_of")
 VALID_STATUSES = frozenset({"planned", "active"})
 VALID_DEPLOYMENT_ROLES = frozenset({"router", "module"})
 VALID_ROUTING_SCOPES = frozenset({"scenario", "global"})
+VALID_ROUTING_OUTCOMES = frozenset({"continue", "terminal"})
 VALID_SOURCE_KINDS = frozenset({"upstream-snapshot", "local-reference", "development-repository"})
 VALID_SCENARIOS = frozenset({"win-access-vba", "win-android", "wsl-python"})
 VALID_VERIFICATION_KINDS = frozenset({"linear", "partial_order", "independent_checks"})
@@ -95,7 +96,7 @@ def _report(
 
 
 def _load_manifest(manifest_path, errors):
-    """E1/E2: manifest must exist and parse to {schema_version: 1, skills: [...]}."""
+    """Load the current manifest schema and its registry sections."""
     if not manifest_path.is_file():
         errors.append(
             _err("MANIFEST_NOT_FOUND", "(manifest)", f"manifest not found: {manifest_path}")
@@ -115,12 +116,12 @@ def _load_manifest(manifest_path, errors):
             )
         )
         return None
-    if data.get("schema_version") != 3:
+    if data.get("schema_version") != 4:
         errors.append(
             _err(
                 "SCHEMA_VERSION_UNSUPPORTED",
                 "(manifest)",
-                f"schema_version must be 3, got {data.get('schema_version')!r}",
+                f"schema_version must be 4, got {data.get('schema_version')!r}",
             )
         )
         return None
@@ -764,12 +765,14 @@ def _check_skill_entry_v2(entry, index, root, errors):
     routing_scope = entry.get("routing_scope", "scenario")
     routing_selector = entry.get("routing_selector")
     if deployment_role == "router":
-        if "routing_scope" in entry or "routing_selector" in entry:
+        if any(field in entry for field in (
+            "routing_scope", "routing_selector", "routing_priority", "routing_outcome"
+        )):
             errors.append(
                 _err(
                     "ROUTER_ROUTING_FIELDS_INVALID",
                     name,
-                    "router entries must not declare module routing_scope or routing_selector",
+                    "router entries must not declare module routing fields",
                 )
             )
     elif routing_scope not in VALID_ROUTING_SCOPES:
@@ -817,6 +820,23 @@ def _check_skill_entry_v2(entry, index, root, errors):
                 "scenario-routed modules must not declare routing_selector",
             )
         )
+
+    if deployment_role == "module":
+        if status == "active" or "routing_priority" in entry:
+            if type(entry.get("routing_priority")) is not int:
+                errors.append(_err(
+                    "ROUTING_PRIORITY_INVALID", name,
+                    "module routing_priority must be an integer",
+                ))
+        if status == "active" or "routing_outcome" in entry:
+            if (
+                not isinstance(entry.get("routing_outcome"), str)
+                or entry["routing_outcome"] not in VALID_ROUTING_OUTCOMES
+            ):
+                errors.append(_err(
+                    "ROUTING_OUTCOME_INVALID", name,
+                    "module routing_outcome must be continue or terminal",
+                ))
 
     if not isinstance(entry.get("entrypoint"), bool):
         errors.append(_err("ENTRYPOINT_FLAG_INVALID", name, "entrypoint must be a boolean"))
@@ -1027,17 +1047,21 @@ def _build_routes(skills, adapters):
     for entry in skills:
         if not isinstance(entry, dict):
             continue
+        candidate = {"name": entry.get("name"), "status": entry.get("status")}
+        if entry.get("deployment_role") == "module":
+            candidate.update(
+                routing_priority=entry.get("routing_priority"),
+                routing_outcome=entry.get("routing_outcome"),
+            )
         if (
             entry.get("deployment_role") == "module"
             and entry.get("routing_scope", "scenario") == "global"
         ):
-            routes["global"]["skills"].append(
-                {"name": entry.get("name"), "status": entry.get("status")}
-            )
+            routes["global"]["skills"].append(candidate)
             continue
         for scenario in entry.get("scenarios", []) if isinstance(entry.get("scenarios"), list) else []:
             if scenario in routes:
-                routes[scenario]["skills"].append({"name": entry.get("name"), "status": entry.get("status")})
+                routes[scenario]["skills"].append(candidate)
     for entry in adapters:
         if not isinstance(entry, dict):
             continue
@@ -1051,7 +1075,14 @@ def _build_routes(skills, adapters):
                     }
                 )
     for route in routes.values():
-        route["skills"] = sorted(route["skills"], key=lambda item: (item.get("name") or "", item.get("status") or ""))
+        route["skills"] = sorted(
+            route["skills"],
+            key=lambda item: (
+                -item["routing_priority"] if type(item.get("routing_priority")) is int else 0,
+                item.get("name") or "",
+                item.get("status") or "",
+            ),
+        )
         route["adapters"] = sorted(route["adapters"], key=lambda item: (item.get("name") or "", item.get("status") or ""))
     return routes
 
@@ -1067,7 +1098,7 @@ def _route_errors(routes):
 
 
 def validate(manifest_path):
-    """Run the full schema-v3 control-plane check and return its report."""
+    """Run the full schema-v4 control-plane check and return its report."""
     manifest_path = Path(manifest_path)
     errors = []
     loaded = _load_manifest(manifest_path, errors)

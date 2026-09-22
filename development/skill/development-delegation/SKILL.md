@@ -7,6 +7,27 @@ description: Route repository work through planning or delegated implementation 
 
 Load this skill once in the main supervisor. The supervisor owns routing and state; workers receive only bounded role-specific context.
 
+## Routing contract
+
+This skill is routing middleware / an orchestrator, with
+`routing_outcome: continue`. It is not a terminal execution skill.
+Its priority determines when orchestration is initialized, independently of
+specialized skill discovery.
+
+After the mandatory session gate is satisfied, return `ROUTE_CONTINUE` to the
+global router before repository discovery or loop execution. The router keeps
+this orchestration contract active, resolves remaining matching global layers
+and the applicable scenario module, and supplies those specialized contracts
+to the supervisor. If no specialized route applies, the supervisor may still
+run the delegation loop for the accepted task.
+
+Carry the router's `activated_modules` through planning and implementation.
+Re-entry into this skill's route selection chooses a loop; it does not rerun
+platform discovery or initialize this orchestrator again. Delegate execution
+with the selected specialized module and adapter contracts included in each
+relevant bounded assignment. A loop result such as `PLAN_SEALED` or
+`PHASE_ACCEPTED` never changes this skill's routing outcome to terminal.
+
 ## Mandatory session gate
 
 At first activation for a session, before repository discovery, planning, or implementation, run `scripts/router_preflight.py` with Python 3.11 or newer. It reads the active user-level Codex config, installed role profiles, and local model catalog. It does not modify files or make inference requests.
@@ -31,7 +52,7 @@ For every role assignment, the main supervisor must call the host's native subag
 
 ## Route selection
 
-After the session gate, inspect current HEAD plus the minimum project/plan documents needed to classify the task.
+After the session gate and platform routing continuation finish, inspect current HEAD plus the minimum project/plan documents needed to classify the task.
 
 Enter the **planning loop** when either condition is true:
 - the user explicitly asks to plan, re-plan, decompose, or phase the work;

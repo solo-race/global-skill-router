@@ -197,7 +197,7 @@ def test_non_office_and_unrelated_host_tasks_do_not_preload_vba_knowledge(adapte
     router = (SKILL_ROOT / "global-skill-router" / "SKILL.md").read_text(encoding="utf-8")
     _requires(
         router,
-        "read zero scenario shards, and stop routing",
+        "On `ROUTE_TERMINAL`, stop routing with zero scenario shards read",
         "Read only that scenario's registered shard",
         "report `ROUTE_NO_MATCH` and continue without loading a managed module",
         "Never scan `library/`, glob module paths, or pre-read unselected modules",

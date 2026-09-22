@@ -90,6 +90,8 @@ def _fixture_repo(
             "path": f"development/skill/{name}",
             "status": "active",
             "deployment_role": "module",
+            "routing_priority": 0,
+            "routing_outcome": "terminal",
             "scenarios": [
                 module_scenarios[index]
                 if module_scenarios is not None
@@ -136,6 +138,8 @@ def _fixture_repo(
                 "path": f"development/skill/{planned_name}",
                 "status": "planned",
                 "deployment_role": "module",
+                "routing_priority": 0,
+                "routing_outcome": "terminal",
                 "scenarios": ["wsl-python"],
                 "deps": [],
                 "composed_of": [],
@@ -161,7 +165,7 @@ def _fixture_repo(
     manifest = skill_root / "manifest.yaml"
     manifest.write_text(
         yaml.safe_dump(
-            {"schema_version": 3, "sources": [], "skills": skills, "adapters": adapters},
+            {"schema_version": 4, "sources": [], "skills": skills, "adapters": adapters},
             sort_keys=False,
         ),
         encoding="utf-8",
@@ -415,7 +419,7 @@ def test_route_index_paths_selectors_and_self_validation(tmp_path):
     index = yaml.safe_load(index_path.read_text(encoding="utf-8"))
 
     assert deploy_skills._validate_route_index(index, payload["payload_root"])
-    assert index["schema_version"] == 3
+    assert index["schema_version"] == 4
     assert index["global_routes"] == []
     assert {item["name"] for item in index["scenarios"]} == set(SCENARIOS)
     for item in index["scenarios"]:
@@ -464,7 +468,7 @@ def test_planned_adapter_file_is_excluded_from_assembled_payload(tmp_path):
     assert "planned-adapter" not in route_text
 
 
-def test_v3_route_contains_active_adapters_with_owner_and_scenario_closure(tmp_path):
+def test_v4_route_contains_active_adapters_with_owner_and_scenario_closure(tmp_path):
     manifest, module_names = _fixture_repo(tmp_path, adapter_fixture=True)
     registry = yaml.safe_load(manifest.read_text(encoding="utf-8"))
     second_active = _write_adapter(tmp_path / "repo", module_names[0], "second-adapter")
@@ -530,7 +534,7 @@ def test_v3_route_contains_active_adapters_with_owner_and_scenario_closure(tmp_p
         (lambda adapter: adapter.update(description=""), "description is invalid"),
     ],
 )
-def test_v3_route_rejects_invalid_nested_adapter_mapping(tmp_path, mutator, message):
+def test_v4_route_rejects_invalid_nested_adapter_mapping(tmp_path, mutator, message):
     manifest, _ = _fixture_repo(tmp_path, adapter_fixture=True)
     payload = _build(manifest, tmp_path / "staging")
     index_path = payload["payload_root"] / "_platform" / "routes" / "index.yaml"
@@ -545,7 +549,7 @@ def test_v3_route_rejects_invalid_nested_adapter_mapping(tmp_path, mutator, mess
         deploy_skills._validate_route_index(index, payload["payload_root"])
 
 
-def test_v3_route_rejects_duplicate_nested_adapter_names(tmp_path):
+def test_v4_route_rejects_duplicate_nested_adapter_names(tmp_path):
     manifest, _ = _fixture_repo(tmp_path, adapter_fixture=True)
     payload = _build(manifest, tmp_path / "staging")
     index_path = payload["payload_root"] / "_platform" / "routes" / "index.yaml"
@@ -560,7 +564,7 @@ def test_v3_route_rejects_duplicate_nested_adapter_names(tmp_path):
         deploy_skills._validate_route_index(index, payload["payload_root"])
 
 
-def test_v3_route_rejects_unknown_shard_fields(tmp_path):
+def test_v4_route_rejects_unknown_shard_fields(tmp_path):
     manifest, _ = _fixture_repo(tmp_path, adapter_fixture=True)
     payload = _build(manifest, tmp_path / "staging")
     index = yaml.safe_load(
@@ -573,11 +577,11 @@ def test_v3_route_rejects_unknown_shard_fields(tmp_path):
     shard["unexpected"] = True
     shard_path.write_text(yaml.safe_dump(shard, sort_keys=False), encoding="utf-8")
 
-    with pytest.raises(deploy_skills.DeploymentError, match="v3 route shard fields"):
+    with pytest.raises(deploy_skills.DeploymentError, match="route shard fields"):
         deploy_skills._validate_route_index(index, payload["payload_root"])
 
 
-def test_v3_route_rejects_canonical_adapter_for_wrong_scenario(tmp_path):
+def test_v4_route_rejects_canonical_adapter_for_wrong_scenario(tmp_path):
     manifest, _ = _fixture_repo(tmp_path, adapter_fixture=True)
     payload = _build(manifest, tmp_path / "staging")
     index = yaml.safe_load(
@@ -596,6 +600,10 @@ def test_v3_route_rejects_canonical_adapter_for_wrong_scenario(tmp_path):
                         "description": "module-00 route.",
                         "skill_path": "library/module-00/MODULE.md",
                         "status": "active",
+                        "skill_path": "library/module-00/MODULE.md",
+                        "status": "active",
+                        "routing_priority": 0,
+                        "routing_outcome": "terminal",
                         "adapters": [
                             {
                                 "name": "active-adapter",
@@ -631,6 +639,8 @@ def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_pa
     assert index["global_routes"] == [
         {
             "name": "development-delegation",
+            "routing_priority": 100,
+            "routing_outcome": "continue",
             "selector": "Existing implementation plan or acceptance contract requiring delegated implementation and validation.",
             "skill_path": "library/development-delegation/MODULE.md",
         }
@@ -698,6 +708,8 @@ def test_p5_gradle_contract_and_source_independent_deployment(tmp_path):
         "path": "development/skill/kotlin-tooling",
         "status": "active",
         "deployment_role": "module",
+        "routing_priority": 10,
+        "routing_outcome": "continue",
         "routing_scope": "scenario",
         "scenarios": ["win-android"],
         "deps": [],
@@ -735,6 +747,8 @@ def test_p5_gradle_contract_and_source_independent_deployment(tmp_path):
     kotlin_contract = kotlin_contract_path.read_text(encoding="utf-8")
     assert "pure Gradle" in kotlin_contract
     assert "runtime-ops" in kotlin_contract
+    assert "`ROUTE_CONTINUE`" in kotlin_contract
+    assert "only when the task" in kotlin_contract
     assert "Do not guess" in kotlin_contract
 
     payload = _build(manifest_path, tmp_path / "p5-stage")
@@ -754,6 +768,11 @@ def test_p5_gradle_contract_and_source_independent_deployment(tmp_path):
     assert kotlin_route["skill_path"] == "library/kotlin-tooling/MODULE.md"
     assert kotlin_route["status"] == "active"
     assert kotlin_route["adapters"] == []
+    assert kotlin_route["routing_priority"] == 10
+    assert kotlin_route["routing_outcome"] == "continue"
+    assert runtime_route["routing_priority"] == 0
+    assert runtime_route["routing_outcome"] == "terminal"
+    assert [item["name"] for item in android["skills"]] == ["kotlin-tooling", "runtime-ops"]
     assert all(
         skill["name"] != "kotlin-tooling"
         for scenario in ("win-access-vba", "wsl-python")
@@ -978,3 +997,120 @@ def test_cli_plan_is_read_only(tmp_path, capsys):
     assert result["managed_scope"] == ["global-skill-router"]
     assert result["unmanaged_paths_untouched"] is True
     assert not target_root.exists()
+
+
+def _routing_contract(payload):
+    # Contract regression only: Markdown is interpreted by Codex, not by Python.
+    return " ".join((payload["payload_root"] / "SKILL.md").read_text(encoding="utf-8").split())
+
+
+def test_highest_priority_delegation_continues_to_available_child_contract(tmp_path):
+    payload = _build(deploy_skills.DEFAULT_MANIFEST, tmp_path / "staging")
+    routes = payload["payload_root"] / "_platform" / "routes"
+    index = yaml.safe_load((routes / "index.yaml").read_text(encoding="utf-8"))
+    android = yaml.safe_load((routes / "win-android.yaml").read_text(encoding="utf-8"))
+    delegation = index["global_routes"][0]
+    child = next(route for route in android["skills"] if route["name"] == "runtime-ops")
+
+    assert delegation["name"] == "development-delegation"
+    assert delegation["routing_priority"] > child["routing_priority"]
+    assert delegation["routing_outcome"] == "continue"
+    assert child["routing_outcome"] == "terminal"
+    assert (payload["payload_root"] / child["skill_path"]).is_file()
+    contract = _routing_contract(payload)
+    assert "On `ROUTE_CONTINUE`, repeat step 2 while excluding `activated_modules`." in contract
+    assert "When no unvisited global route matches, resolve exactly one scenario" in contract
+    module = (payload["payload_root"] / delegation["skill_path"]).read_text(encoding="utf-8")
+    assert "return `ROUTE_CONTINUE`" in module
+    assert "routing middleware / an orchestrator" in module
+
+
+def test_terminal_global_match_contract_stops_before_scenario_discovery(tmp_path):
+    manifest, _ = _fixture_repo(tmp_path)
+    registry = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    registry["skills"][0].update(
+        routing_scope="global", routing_selector="Fully owned execution task.",
+        scenarios=[], routing_priority=100, routing_outcome="terminal",
+    )
+    manifest.write_text(yaml.safe_dump(registry, sort_keys=False), encoding="utf-8")
+    # Use the actual router contract, not the fixture's placeholder body.
+    source_router = deploy_skills.DEFAULT_MANIFEST.parent / "global-skill-router" / "SKILL.md"
+    shutil.copyfile(source_router, manifest.parent / "global-skill-router" / "SKILL.md")
+    payload = _build(manifest, tmp_path / "staging")
+    index = yaml.safe_load(
+        (payload["payload_root"] / "_platform/routes/index.yaml").read_text(encoding="utf-8")
+    )
+
+    assert index["global_routes"][0]["routing_outcome"] == "terminal"
+    assert "On `ROUTE_TERMINAL`, stop routing with zero scenario shards read." in _routing_contract(payload)
+
+
+def test_multiple_orchestrator_contract_has_finite_unique_priority_order(tmp_path):
+    manifest, names = _fixture_repo(tmp_path, module_count=4)
+    registry = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    # Reverse lexical order by priority; leave one executable scenario child.
+    for entry, priority in zip(registry["skills"][:3], (50, 100, 150)):
+        entry.update(
+            routing_scope="global", routing_selector="Matching orchestration layer.",
+            scenarios=[], routing_priority=priority, routing_outcome="continue",
+        )
+    manifest.write_text(yaml.safe_dump(registry, sort_keys=False), encoding="utf-8")
+    source_router = deploy_skills.DEFAULT_MANIFEST.parent / "global-skill-router" / "SKILL.md"
+    shutil.copyfile(source_router, manifest.parent / "global-skill-router" / "SKILL.md")
+    payload = _build(manifest, tmp_path / "staging")
+    routes = payload["payload_root"] / "_platform/routes"
+    index = yaml.safe_load((routes / "index.yaml").read_text(encoding="utf-8"))
+    child_routes = yaml.safe_load((routes / "wsl-python.yaml").read_text(encoding="utf-8"))["skills"]
+
+    assert [route["name"] for route in index["global_routes"]] == names[2::-1]
+    assert all(route["routing_outcome"] == "continue" for route in index["global_routes"])
+    assert [route["name"] for route in child_routes] == [names[3]]
+    sequence = index["global_routes"] + child_routes
+    assert len({route["name"] for route in sequence}) == len(sequence) == 4
+    contract = _routing_contract(payload)
+    assert "initialize each module at most once" in contract
+    assert "Each continuing match consumes one unvisited route." in contract
+    assert "Exhaustion ends discovery without revisiting earlier modules" in contract
+
+
+@pytest.mark.parametrize("scope", ["global", "scenario"])
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("routing_priority", True, "routing_priority must be an integer"),
+        ("routing_priority", None, "routing_priority must be an integer"),
+        ("routing_outcome", "stop", "routing_outcome must be continue or terminal"),
+        ("routing_outcome", None, "routing_outcome must be continue or terminal"),
+    ],
+)
+def test_v4_index_rejects_invalid_routing_controls(tmp_path, scope, field, value, message):
+    payload = _build(deploy_skills.DEFAULT_MANIFEST, tmp_path / "staging")
+    routes = payload["payload_root"] / "_platform/routes"
+    index = yaml.safe_load((routes / "index.yaml").read_text(encoding="utf-8"))
+    if scope == "global":
+        index["global_routes"][0][field] = value
+    else:
+        shard_path = routes / "wsl-python.yaml"
+        shard = yaml.safe_load(shard_path.read_text(encoding="utf-8"))
+        shard["skills"][0][field] = value
+        shard_path.write_text(yaml.safe_dump(shard, sort_keys=False), encoding="utf-8")
+    with pytest.raises(deploy_skills.DeploymentError, match=message):
+        deploy_skills._validate_route_index(index, payload["payload_root"])
+
+
+def test_legacy_v3_route_index_remains_verifiable_for_recovery(tmp_path):
+    payload = _build(deploy_skills.DEFAULT_MANIFEST, tmp_path / "staging")
+    routes = payload["payload_root"] / "_platform/routes"
+    index = yaml.safe_load((routes / "index.yaml").read_text(encoding="utf-8"))
+    index["schema_version"] = 3
+    for route in index["global_routes"]:
+        route.pop("routing_priority")
+        route.pop("routing_outcome")
+    for scenario in index["scenarios"]:
+        shard_path = payload["payload_root"] / scenario["shard"]
+        shard = yaml.safe_load(shard_path.read_text(encoding="utf-8"))
+        for route in shard["skills"]:
+            route.pop("routing_priority")
+            route.pop("routing_outcome")
+        shard_path.write_text(yaml.safe_dump(shard, sort_keys=False), encoding="utf-8")
+    assert deploy_skills._validate_route_index(index, payload["payload_root"])

@@ -238,7 +238,7 @@ def test_malformed_profile_cannot_pass_activation_gate(tmp_path):
     manifest.write_text(
         yaml.safe_dump(
                 {
-                    "schema_version": 3,
+                    "schema_version": 4,
                     "sources": [],
                     "skills": [
                         {
@@ -246,6 +246,9 @@ def test_malformed_profile_cannot_pass_activation_gate(tmp_path):
                             "path": "development/skill/research-investigation",
                             "status": "active",
                             "deployment_role": "module",
+                            "deployment_role": "module",
+                            "routing_priority": 0,
+                            "routing_outcome": "terminal",
                             "scenarios": ["win-access-vba", "win-android", "wsl-python"],
                             "deps": [],
                             "composed_of": [],

@@ -101,7 +101,15 @@ For heavier skills, extend toward the five-layer stack reviewed in `architecture
   into their declared `scenarios[]` shards. A cross-scenario task-intent module may instead
   declare `routing_scope: global`, a short `routing_selector`, and `scenarios: []`; active global
   routes are embedded in the route index and are checked before any scenario shard. A global hit
-  therefore costs the index read plus the selected module read, not three scenario-shard reads.
+  initializes its module; it does not by itself complete routing. Manifest/index schema v4
+  requires active modules to declare integer `routing_priority` and `routing_outcome`
+  (`continue` or `terminal`). Higher priority selects first within a scope; equal-rank
+  ambiguity remains an error. Continuing orchestrators return `ROUTE_CONTINUE` after
+  initialization, preserving discovery of remaining global routes and one applicable
+  scenario shard. Terminal owners return `ROUTE_TERMINAL` and stop discovery. Track
+  activated module names for the task so continuation never initializes a module twice.
+  Deployment verification accepts index v1/v2/v3 for recovery; runtime continuation
+  requires a v4 payload.
 - **Owner rule:** adapters and profiles are owner-contained extensions. An adapter is deployed
   with its owner Skill and is not installed as a separate top-level Skill.
 - **Dependency rule:** before deploying an active Skill, its `deps[]` and active

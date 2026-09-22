@@ -36,6 +36,9 @@ def _skill(name, status="active", scenarios=None, entrypoint=False, **overrides)
         "description": f"{name} test skill.",
     }
     entry.update(overrides)
+    if entry["deployment_role"] == "module":
+        entry.setdefault("routing_priority", 0)
+        entry.setdefault("routing_outcome", "terminal")
     return entry
 
 
@@ -128,7 +131,7 @@ def _write_manifest(root, skills, sources=None, adapters=None):
     manifest.write_text(
         yaml.safe_dump(
             {
-                "schema_version": 3,
+                "schema_version": 4,
                 "sources": list(sources or []),
                 "skills": list(skills),
                 "adapters": list(adapters or []),
@@ -159,9 +162,14 @@ def _codes(report):
 def test_runtime_adapter_contract_reuse_is_scoped_and_invalidated():
     skill_root = Path(__file__).resolve().parents[1] / "skill"
     runtime = (skill_root / "runtime-ops" / "SKILL.md").read_text(encoding="utf-8")
+    runtime = " ".join(runtime.split())
     assert "before any external tool call" not in runtime
     for requirement in (
         "before its capabilities are first needed",
+        "current routing with a v4 route index",
+        "selected module candidate's nested `adapters` mapping as the authoritative adapter registry",
+        "Legacy route-index v1/v2/v3 payloads are accepted only by the deployment verifier for installed-payload recovery",
+        "do not use them as current routing input, and redeploy before routing",
         "current task/session scope",
         "Reuse the loaded contract for subsequent operations",
         "adapter identity, provider/catalog compatibility, capability boundary",
@@ -178,36 +186,38 @@ def test_runtime_adapter_contract_reuse_is_scoped_and_invalidated():
     router = (skill_root / "global-skill-router" / "SKILL.md").read_text(encoding="utf-8")
     assert "currently loaded `SKILL.md`" in router
     assert "never\nagainst the process current working directory" in router
-    assert "Evaluate `global_routes` first" in router
-    assert "read zero scenario shards" in router
+    router = " ".join(router.split())
+    assert "Evaluate unvisited `global_routes`" in router
+    assert "On `ROUTE_TERMINAL`, stop routing with zero scenario shards read." in router
     assert "Never read a second scenario shard" in router
-    assert "smallest matching\n   module set" in router
-    assert "adapter-free\n   candidate is valid" in router
+    assert "Select the smallest applicable unvisited module" in router
+    assert "continuation does not" in router
+    assert "The `adapters` list may be empty" in router
     assert "require exactly one match" in router
     assert "adapter ambiguity before reading any adapter" in router
-    assert "Never scan `library/`" in router
+    assert "Do not enumerate `library/` or `adapters/`" in router
 
     assert "compare active mapping descriptions with task and host/toolchain evidence" in runtime
     assert "require exactly one match" in runtime
     assert "Use `adapter_path` only to locate the uniquely selected contract" in runtime
 
 
-def test_real_manifest_v3_is_green_and_routes_are_explicit():
+def test_real_manifest_v4_is_green_and_routes_are_explicit():
     report = validate_skills.validate(validate_skills.DEFAULT_MANIFEST)
     assert report["ok"] is True, report["errors"]
     assert report["sources_checked"] == 6
     assert report["adapters_checked"] == 4
     assert report["routes"]["global"]["skills"] == [
-        {"name": "development-delegation", "status": "active"},
+        {"name": "development-delegation", "status": "active", "routing_priority": 100, "routing_outcome": "continue"},
     ]
     assert report["routes"]["win-access-vba"]["skills"] == [
         {"name": "global-skill-router", "status": "active"},
-        {"name": "runtime-ops", "status": "active"}
+        {"name": "runtime-ops", "status": "active", "routing_priority": 0, "routing_outcome": "terminal"}
     ]
     assert report["routes"]["win-android"]["skills"] == [
+        {"name": "kotlin-tooling", "status": "active", "routing_priority": 10, "routing_outcome": "continue"},
         {"name": "global-skill-router", "status": "active"},
-        {"name": "kotlin-tooling", "status": "active"},
-        {"name": "runtime-ops", "status": "active"},
+        {"name": "runtime-ops", "status": "active", "routing_priority": 0, "routing_outcome": "terminal"},
     ]
     assert report["routes"]["win-access-vba"]["adapters"] == [
         {"name": "sql-server", "owner_skill": "runtime-ops", "status": "planned"},
@@ -218,7 +228,7 @@ def test_real_manifest_v3_is_green_and_routes_are_explicit():
     ]
     assert report["routes"]["wsl-python"]["skills"] == [
         {"name": "global-skill-router", "status": "active"},
-        {"name": "research-investigation", "status": "active"},
+        {"name": "research-investigation", "status": "active", "routing_priority": 0, "routing_outcome": "terminal"},
     ]
     assert report["routes"]["wsl-python"]["adapters"] == [
         {"name": "wsl-python", "owner_skill": "runtime-ops", "status": "planned"},

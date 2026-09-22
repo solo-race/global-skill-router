@@ -1,4 +1,4 @@
-schema_version: 3
+schema_version: 4
 
 sources:
   - id: spinecodex-skills-upstream
@@ -51,6 +51,8 @@ skills:
     status: active
     deployment_role: module
     routing_scope: scenario
+    routing_priority: 0
+    routing_outcome: terminal
     scenarios: [wsl-python]
     deps: []
     composed_of: []
@@ -62,6 +64,8 @@ skills:
     status: active
     deployment_role: module
     routing_scope: scenario
+    routing_priority: 0
+    routing_outcome: terminal
     scenarios: [win-access-vba, win-android]
     deps: []
     composed_of: []
@@ -73,6 +77,8 @@ skills:
     status: active
     deployment_role: module
     routing_scope: scenario
+    routing_priority: 10
+    routing_outcome: continue
     scenarios: [win-android]
     deps: []
     composed_of: []
@@ -84,6 +90,8 @@ skills:
     status: active
     deployment_role: module
     routing_scope: global
+    routing_priority: 100
+    routing_outcome: continue
     routing_selector: Existing implementation plan or acceptance contract requiring delegated implementation and validation.
     scenarios: []
     deps: []

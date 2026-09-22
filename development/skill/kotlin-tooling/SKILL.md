@@ -15,6 +15,12 @@ do not load this module merely because the sources are Kotlin. Load this module
 when the task requires Kotlin Toolchain, Kotlin source-set, Kotlin plugin, KMP,
 or AGP migration decisions.
 
+For a `win-android` task that needs Kotlin-specific decisions, initialize this
+module before the lower-priority runtime route within the same shard. Return `ROUTE_CONTINUE` after its decision. Keep the Kotlin decision contract active while discovery checks
+whether `runtime-ops` is also applicable. Load `runtime-ops` only when the task
+requires its Android/Gradle runtime capabilities; exhausting discovery after
+the Kotlin decision is valid for decision-only work.
+
 All paths in this module are relative to the directory containing this file.
 The source checkout used to derive these rules is development-only evidence and
 is never a runtime dependency.

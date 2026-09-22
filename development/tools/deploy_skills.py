@@ -44,9 +44,10 @@ SCENARIO_SELECTORS = {
     "win-android": "windows android build/runtime",
     "wsl-python": "wsl python evidence/investigation",
 }
-ROUTE_INDEX_SCHEMA_VERSION = 3
+ROUTE_INDEX_SCHEMA_VERSION = 4
 LEGACY_ROUTE_INDEX_SCHEMA_VERSION = 1
 LEGACY_ROUTE_INDEX_SCHEMA_V2 = 2
+LEGACY_ROUTE_INDEX_SCHEMA_V3 = 3
 
 
 class DeploymentError(RuntimeError):
@@ -153,8 +154,15 @@ def _validate_adapter_environment(adapter_path: Path, adapter_name: str, scenari
         )
 
 
+def _validate_routing_fields(route: dict) -> None:
+    if type(route.get("routing_priority")) is not int:
+        raise DeploymentError("route routing_priority must be an integer")
+    if route.get("routing_outcome") not in ("continue", "terminal"):
+        raise DeploymentError("route routing_outcome must be continue or terminal")
+
+
 def _validate_route_index(index: object, router_root: Path) -> set[str]:
-    """Validate route-index v3, accepting v1/v2 for installed-payload recovery."""
+    """Validate route-index v4, accepting v1/v2/v3 for installed-payload recovery."""
 
     if not isinstance(index, dict):
         raise DeploymentError("route index must be a mapping")
@@ -163,7 +171,9 @@ def _validate_route_index(index: object, router_root: Path) -> set[str]:
         if set(index) != {"schema_version", "scenarios"}:
             raise DeploymentError("legacy route index must contain only schema_version and scenarios")
         global_routes = []
-    elif schema_version in (LEGACY_ROUTE_INDEX_SCHEMA_V2, ROUTE_INDEX_SCHEMA_VERSION):
+    elif schema_version in (
+        LEGACY_ROUTE_INDEX_SCHEMA_V2, LEGACY_ROUTE_INDEX_SCHEMA_V3, ROUTE_INDEX_SCHEMA_VERSION
+    ):
         if set(index) != {"schema_version", "global_routes", "scenarios"}:
             raise DeploymentError("route index must contain only schema_version, global_routes, and scenarios")
         global_routes = index.get("global_routes")
@@ -172,10 +182,13 @@ def _validate_route_index(index: object, router_root: Path) -> set[str]:
     else:
         raise DeploymentError("route index schema_version is invalid")
 
+    routing_fields = {"routing_priority", "routing_outcome"} if schema_version == ROUTE_INDEX_SCHEMA_VERSION else set()
     global_names: set[str] = set()
     for item in global_routes:
-        if not isinstance(item, dict) or set(item) != {"name", "selector", "skill_path"}:
-            raise DeploymentError("global route entries must contain name, selector, skill_path")
+        if not isinstance(item, dict) or set(item) != {"name", "selector", "skill_path"} | routing_fields:
+            raise DeploymentError("global route fields are invalid")
+        if routing_fields:
+            _validate_routing_fields(item)
         name = item.get("name")
         if not isinstance(name, str) or not name.strip() or name in global_names:
             raise DeploymentError(f"route index has invalid or duplicate global route: {name!r}")
@@ -218,8 +231,8 @@ def _validate_route_index(index: object, router_root: Path) -> set[str]:
         shard = _read_yaml(shard_path, path.as_posix())
         if not isinstance(shard, dict) or shard.get("scenario") != name or not isinstance(shard.get("skills"), list):
             raise DeploymentError(f"route shard structure is invalid: {path.as_posix()}")
-        if schema_version == ROUTE_INDEX_SCHEMA_VERSION and set(shard) != {"scenario", "skills"}:
-            raise DeploymentError(f"v3 route shard fields are invalid: {path.as_posix()}")
+        if schema_version in (LEGACY_ROUTE_INDEX_SCHEMA_V3, ROUTE_INDEX_SCHEMA_VERSION) and set(shard) != {"scenario", "skills"}:
+            raise DeploymentError(f"route shard fields are invalid: {path.as_posix()}")
         candidate_names: set[str] = set()
         for candidate in shard["skills"]:
             if not isinstance(candidate, dict):
@@ -238,16 +251,18 @@ def _validate_route_index(index: object, router_root: Path) -> set[str]:
                 raise DeploymentError(f"route skill path is missing: {skill_path.as_posix()}")
             if candidate.get("status") != "active":
                 raise DeploymentError(f"planned route candidate is executable: {candidate_name}")
-            if schema_version != ROUTE_INDEX_SCHEMA_VERSION:
+            if schema_version in (LEGACY_ROUTE_INDEX_SCHEMA_VERSION, LEGACY_ROUTE_INDEX_SCHEMA_V2):
                 continue
-            if set(candidate) != {"name", "description", "skill_path", "status", "adapters"}:
+            if set(candidate) != {"name", "description", "skill_path", "status", "adapters"} | routing_fields:
                 raise DeploymentError(
-                    f"v3 route candidate fields are invalid: {candidate_name!r}"
+                    f"route candidate fields are invalid: {candidate_name!r}"
                 )
+            if routing_fields:
+                _validate_routing_fields(candidate)
             expected_skill_path = f"library/{candidate_name}/MODULE.md"
             if skill_path.as_posix() != expected_skill_path:
                 raise DeploymentError(
-                    f"v3 route skill path for {candidate_name} must be {expected_skill_path!r}"
+                    f"route skill path for {candidate_name} must be {expected_skill_path!r}"
                 )
             description = candidate.get("description")
             if not isinstance(description, str) or not description.strip():
@@ -264,7 +279,7 @@ def _validate_route_index(index: object, router_root: Path) -> set[str]:
                     "status",
                 }:
                     raise DeploymentError(
-                        f"v3 route adapter fields are invalid: {candidate_name!r}"
+                        f"route adapter fields are invalid: {candidate_name!r}"
                     )
                 adapter_name = adapter.get("name")
                 if (
@@ -450,10 +465,10 @@ def _discovery_boundary_errors(router_root: Path) -> list[str]:
 
 def _route_payloads(data: dict, root: Path, router_root: Path) -> tuple[dict, dict[str, str]]:
     modules = _active_modules(data)
-    module_by_name = {entry.get("name"): entry for entry in modules}
+    modules = sorted(modules, key=lambda entry: (-entry["routing_priority"], entry["name"]))
     global_routes = []
-    for name in sorted(module_by_name):
-        entry = module_by_name[name]
+    for entry in modules:
+        name = entry["name"]
         if entry.get("routing_scope", "scenario") != "global":
             continue
         if entry.get("entrypoint") is not True:
@@ -462,6 +477,8 @@ def _route_payloads(data: dict, root: Path, router_root: Path) -> tuple[dict, di
             {
                 "name": name,
                 "selector": str(entry.get("routing_selector", "")).strip(),
+                "routing_priority": entry["routing_priority"],
+                "routing_outcome": entry["routing_outcome"],
                 "skill_path": f"library/{name}/MODULE.md",
             }
         )
@@ -483,8 +500,8 @@ def _route_payloads(data: dict, root: Path, router_root: Path) -> tuple[dict, di
     _write_yaml(routes_dir / "index.yaml", index)
     for scenario in SCENARIOS:
         candidates = []
-        for name in sorted(module_by_name):
-            entry = module_by_name[name]
+        for entry in modules:
+            name = entry["name"]
             if entry.get("routing_scope", "scenario") == "global":
                 continue
             if scenario not in (entry.get("scenarios") or []):
@@ -505,6 +522,8 @@ def _route_payloads(data: dict, root: Path, router_root: Path) -> tuple[dict, di
                 {
                     "name": name,
                     "description": _short_description(module_root, entry),
+                    "routing_priority": entry["routing_priority"],
+                    "routing_outcome": entry["routing_outcome"],
                     "skill_path": f"library/{name}/MODULE.md",
                     "status": "active",
                     "adapters": adapters,

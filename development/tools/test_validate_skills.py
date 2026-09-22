@@ -30,6 +30,9 @@ def _entry(name, path, status="planned", **overrides):
         "description": "placeholder description",
     }
     entry.update(overrides)
+    if entry["deployment_role"] == "module":
+        entry.setdefault("routing_priority", 0)
+        entry.setdefault("routing_outcome", "terminal")
     return entry
 
 
@@ -118,7 +121,7 @@ def _build_tree(tmp_path, entries, probe_dirs=(), create_external=True, sources=
     manifest.write_text(
         yaml.safe_dump(
             {
-                "schema_version": 3,
+                "schema_version": 4,
                 "sources": source_entries,
                 "skills": skill_entries,
                 "adapters": [],
@@ -250,7 +253,7 @@ def test_active_global_route_allows_empty_scenarios_with_selector(tmp_path):
     report = _run(tmp_path, [entry])
     assert report["ok"] is True, report["errors"]
     assert report["routes"]["global"]["skills"] == [
-        {"name": "global-worker", "status": "active"}
+        {"name": "global-worker", "status": "active", "routing_priority": 0, "routing_outcome": "terminal"}
     ]
     assert all(
         item["name"] != "global-worker"
@@ -522,10 +525,10 @@ def test_invalid_scenario_value_rejected(tmp_path):
     assert "INVALID_SCENARIO" in _codes(report)
 
 
-def test_schema_v3_required(tmp_path):
+def test_schema_v4_required(tmp_path):
     manifest = _build_tree(tmp_path, _green_entries())
     payload = yaml.safe_load(manifest.read_text(encoding="utf-8"))
-    payload["schema_version"] = 2
+    payload["schema_version"] = 3
     manifest.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
     assert "SCHEMA_VERSION_UNSUPPORTED" in _codes(validate_skills.validate(manifest))
 
@@ -620,7 +623,7 @@ def test_report_shape_and_exit_code(tmp_path, monkeypatch, capsys):
     assert report["errors"] == []
 
     broken = {
-        "schema_version": 3,
+        "schema_version": 4,
         "sources": [],
         "skills": [
             _entry("dupe", "development/skill/lib-a"),
@@ -921,3 +924,35 @@ def test_repo_manifest_passes_profile_gate():
     report = validate_skills.validate(validate_skills.DEFAULT_MANIFEST)
     assert report["errors"] == []
     assert report["ok"] is True
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "code"),
+    [
+        ("routing_priority", True, "ROUTING_PRIORITY_INVALID"),
+        ("routing_priority", "100", "ROUTING_PRIORITY_INVALID"),
+        ("routing_priority", None, "ROUTING_PRIORITY_INVALID"),
+        ("routing_outcome", "stop", "ROUTING_OUTCOME_INVALID"),
+        ("routing_outcome", [], "ROUTING_OUTCOME_INVALID"),
+        ("routing_outcome", None, "ROUTING_OUTCOME_INVALID"),
+    ],
+)
+def test_active_module_requires_explicit_routing_controls(tmp_path, field, value, code):
+    entries = _green_entries()
+    active = next(entry for entry in entries if entry["status"] == "active")
+    active[field] = value
+    report = _run(tmp_path, entries)
+    assert code in _codes(report)
+
+
+def test_manifest_projection_orders_priority_without_changing_outcome():
+    entries = [
+        _entry("a-terminal", "development/skill/a-terminal", routing_scope="global",
+               routing_priority=10, routing_outcome="terminal"),
+        _entry("z-orchestrator", "development/skill/z-orchestrator", routing_scope="global",
+               routing_priority=100, routing_outcome="continue"),
+    ]
+    projected = validate_skills._build_routes(entries, [])["global"]["skills"]
+    assert [(route["name"], route["routing_outcome"]) for route in projected] == [
+        ("z-orchestrator", "continue"), ("a-terminal", "terminal")
+    ]

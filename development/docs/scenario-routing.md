@@ -8,18 +8,27 @@ this page must not be edited as a second route registry.
 
 | Scope | Intent / control plane | Current route | State |
 |---|---|---|---|
-| `global` | Execute an existing implementation/acceptance contract | `development-delegation` | active |
+| `global` | Orchestrate an existing implementation/acceptance contract | `development-delegation` | active; priority 100; continue |
 | `win-access-vba` | Host/tool inspection, mutation, and testing | `runtime-ops` + `vba-office` | active |
 | `win-access-vba` | SQL Server runtime operations | `runtime-ops` + `sql-server` | planned; no adapter capability yet |
-| `win-android` | Android/Gradle runtime operations | `runtime-ops` + `android-gradle` | active |
-| `win-android` | Kotlin Toolchain, KMP, and AGP-specific decisions | `kotlin-tooling` | active |
+| `win-android` | Kotlin Toolchain, KMP, and AGP-specific decisions | `kotlin-tooling` → continue | active; priority 10 |
+| `win-android` | Android/Gradle runtime operations, when also required | `runtime-ops` + `android-gradle` | active; priority 0; terminal |
 | `wsl-python` | Evidence-first external investigation | `research-investigation` + selected profile | active |
 | `wsl-python` | WSL/Python runtime operations | `runtime-ops` + `wsl-python` | planned; no adapter capability yet |
 
 ## Routing rules
 
-- Global task-intent routes are checked before scenario routing. A global hit loads its
-  module directly from the route index and does not read a scenario shard.
+- Global task-intent routes are checked before scenario routing. Within each scope,
+  higher `routing_priority` is selected first; equal-priority ambiguity is reported.
+  A match initializes its module once. `routing_outcome: continue` resumes discovery;
+  `terminal` stops it when the module fully owns execution. Priority does not imply stop.
+- `development-delegation` is orchestration middleware. After its session gate it
+  returns `ROUTE_CONTINUE`, leaving specialized scenario discovery active. On
+  `win-android`, `kotlin-tooling` is priority 10 and continues to the next
+  applicable route; `runtime-ops` is priority 0 and terminal. Other current
+  scenario routes are priority 0 and terminal.
+- Activated module names persist through the task, so continuation consumes only
+  unvisited routes and multiple orchestration layers cannot repeatedly select themselves.
 - Scenario selection comes from task/repository/environment evidence already available;
   once selected, at most one scenario shard is read. Ambiguity is reported rather than
   resolved by scanning multiple shards.
@@ -28,6 +37,8 @@ this page must not be edited as a second route registry.
 - A `planned` route records an extension point only. It does not authorize a tool call or
   claim that the capability is available.
 - `wsl-python` currently selects only the research control plane; its scenario-specific
-  runtime adapter remains planned. `win-android` selects `runtime-ops` with `android-gradle`.
+  runtime adapter remains planned. `win-android` loads `runtime-ops` with
+  `android-gradle` only when that runtime capability is applicable; Kotlin
+  decision work remains active across that continuation.
 - Adapters are owner-contained under `runtime-ops` and are deployed with that Skill; they
   are not independently installable top-level Skills.

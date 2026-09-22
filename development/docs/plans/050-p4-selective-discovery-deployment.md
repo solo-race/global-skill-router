@@ -49,9 +49,9 @@ P4 完成后必须满足：新增 module 可以增长，但平台管理的 Codex
 
 `global-skill-router` 是本平台唯一顶层 Skill。`library/*` 中的 module 只以私有 `MODULE.md` 载荷存在，且不带 module-root `agents/openai.yaml`，因此不会产生额外的 Codex discovery entry；部署器不得修改 target root 中与本平台无关的既有 Skill。
 
-### D2 — Manifest v3 增加 `deployment_role`
+### D2 — Manifest v4 增加 `deployment_role`
 
-P4 将 manifest `schema_version` 从 2 升至 3；`sources / skills / adapters` 三个顶层身份面保持不变。每个 Skill 新增必填：
+P4 将 manifest `schema_version` 从 2 升至 4；`sources / skills / adapters` 三个顶层身份面保持不变。每个 Skill 新增必填：
 
 ```yaml
 deployment_role: router | module
@@ -81,7 +81,7 @@ P4 新增：
 
 `entrypoint` 与 `deployment_role` 分工：`entrypoint` 表示逻辑上可被路由并要求 agent metadata；`deployment_role` 表示物理 Codex catalog 暴露。现有 framework 可保留 `entrypoint: true`，其 metadata 用于生成 router 的 route shard，但它们仍因 `deployment_role: module` 而不直接安装到顶层。
 
-Validator 新增 gate：schema 必须为 3；每个 skill 的 deployment_role 合法；恰有一个 active router；router 必须 active + entrypoint true + scenarios 非空；所有 active module 中 `entrypoint: true` 的直接逻辑入口必须出现在 router `composed_of[]`；active `entrypoint:false` module 若未来出现，必须能从 router 直接入口的 composition closure 可达；不得把 source/adapter 当 deployment module。
+Validator 新增 gate：schema 必须为 4；每个 skill 的 deployment_role 合法；恰有一个 active router；router 必须 active + entrypoint true + scenarios 非空；所有 active module 中 `entrypoint: true` 的直接逻辑入口必须出现在 router `composed_of[]`；active `entrypoint:false` module 若未来出现，必须能从 router 直接入口的 composition closure 可达；不得把 source/adapter 当 deployment module。
 
 ### D3 — Router 是薄控制入口，不是聚合大 Skill
 
@@ -89,30 +89,37 @@ Validator 新增 gate：schema 必须为 3；每个 skill 的 deployment_role �
 
 Router 正常流程：
 
-1. 根据当前任务、repo/environment 线索判断候选 scenario；
-2. 读取 `_platform/routes/index.yaml` 获得 scenario shard 路径；
-3. 只读取必要的一个 shard；仅在场景确实不确定时读取第二个 shard；
-4. 从 shard 中选择最小 module 集，默认一个；无匹配时不加载 module；
-5. 读取所选 `library/<module>/MODULE.md`；
-6. 后续 profile/adapter/reference 加载完全服从该 module 自己的 progressive-disclosure contract；
+1. 读取 `_platform/routes/index.yaml`；先检查 global task-intent routes；
+2. 每个 scope 内按 `routing_priority` 从高到低选择匹配项，同优先级仍有歧义则报告，不用名称排序替代判断；
+3. 读取所选 module，初始化后根据独立的 `routing_outcome` 处理：`continue` 返回 `ROUTE_CONTINUE`，继续剩余候选；`terminal` 在完整承担执行时返回 `ROUTE_TERMINAL`，结束发现；
+4. global 候选耗尽后，按当前任务、repo/environment 线索选择至多一个 scenario shard，再按相同优先级/结果规则选择 specialized module；场景歧义时报告，不读取第二个 shard 作比较；
+5. 当前任务持有已激活 module 名称集合；每个 module 只初始化一次，continuation 和 planning-loop re-entry 不重置该集合；
+6. 后续 profile/adapter/reference 加载服从选中 module 的 progressive-disclosure contract；orchestrator 将适用的 specialized contract 传给执行 worker；
 7. 不扫描 `library/`，不预读未命中 module。
+
+`development-delegation` 声明 priority 100 / `continue`，在 session gate 完成后继续路由；现有 scenario execution modules 声明 priority 0 / `terminal`。匹配、优先级和路由完成是不同状态。
 
 “调取其他 Skill”在 P4 的准确含义是**读取并服从部署后的嵌套 module `MODULE.md`**，不是要求 Codex 把 nested directory 再注册为原生 Skill。
 
 ### D4 — 路由索引分层，避免把 catalog 膨胀转移到 router
 
-Deploy manager 根据 manifest + active logical entrypoint metadata 生成 `_platform/routes/`。`index.yaml` 只含固定 scenario vocabulary、shard 相对路径与极短 selector；不得列出所有 module。每个 `<scenario>.yaml` 只列该 scenario 的 active `deployment_role: module` 且 `entrypoint:true` 的候选项，字段限定为：
+Deploy manager 根据 manifest + active logical entrypoint metadata 生成 `_platform/routes/`。`index.yaml` 含固定 scenario vocabulary、shard 相对路径及 selector，并只内联 global routes 的名称、短 selector、module 路径、priority 与 outcome；scenario modules 留在各自 shard。每个 `<scenario>.yaml` 只列该 scenario 的 active `deployment_role: module` 且 `entrypoint:true` 的候选项，字段限定为：
 
 ```yaml
 - name: research-investigation
   description: <bounded short description>
   skill_path: library/research-investigation/MODULE.md
   status: active
+  routing_priority: 0
+  routing_outcome: terminal
+  adapters: []  # active owner/scenario adapter mappings when available
 ```
 
 route shard 不复制 SKILL body、profile、adapter operation 或 reference 内容。planned Skill/adapter 不进入可执行候选；如需要显示“能力尚未实现”，只能作为 bounded unavailable note，且不得生成可加载路径。
 
-`agents/openai.yaml` 的 `short_description` 是 routing description 的优先来源；缺失时 active logical entrypoint 本身应因 validator gate 失败。生成顺序必须确定性排序，使同一 manifest 产生字节稳定索引。
+Route index schema 为 v4。每个 active module 必须声明整数 `routing_priority` 和 `routing_outcome: continue | terminal`；router 自身不声明 module routing fields。Verifier 保留 v1/v2/v3 payload recovery，旧版本不提供新的 continuation contract。
+
+`agents/openai.yaml` 的 `short_description` 是 routing description 的优先来源；缺失时 active logical entrypoint 本身应因 validator gate 失败。生成顺序按 priority 降序、name 升序保持确定性；name 仅保证字节稳定，不消除运行时同优先级歧义。
 
 ### D5 — Router payload 是部署时组装产物
 
@@ -208,9 +215,9 @@ development/skill/global-skill-router/
 
 Router 不承担 module 的版本升级逻辑、部署逻辑或状态修复；这些属于 deploy manager。
 
-## §4 Manifest v3 与 validator 扩展
+## §4 Manifest v4 与 validator 扩展
 
-`validate_skills.py` 升级至 schema v3，同时保留 P1/P2/P3 所有 contract gate。新增稳定错误类别至少包括：
+`validate_skills.py` 升级至 schema v4，同时保留 P1/P2/P3 所有 contract gate。新增稳定错误类别至少包括：
 
 | Gate | 失败示例 | 建议错误码 |
 |---|---|---|
@@ -232,8 +239,8 @@ Route builder 可放在 `deploy_skills.py` 内部纯函数，不另建脚本，�
 
 索引必须满足：
 
-- `index` 大小只随 scenario 数增长，不随 module 数增长；
-- module 数增长只影响对应 shard；
+- `index` 大小只随固定 scenario metadata 和 global route 数增长；scenario module 增长不改变 index；
+- scenario module 数增长只影响对应 shard；
 - shard 每项只含 routing 必需 metadata；
 - deterministic ordering；
 - route paths 为 router-relative POSIX style；
@@ -256,6 +263,7 @@ Route builder 可放在 `deploy_skills.py` 内部纯函数，不另建脚本，�
 8. **Legacy coexistence**：target root 预置 `vba-skill` fixture，apply/update/rollback 后逐字节不变。
 9. **Planned exclusion**：planned skill/adapter 不进入 library 可执行候选。
 10. **Determinism**：同一逻辑输入两次 build 的 routes 与 state（排除运行时临时字段）字节稳定。
+11. **Continuation contract**：最高优先级 delegation orchestrator 保留 child route；terminal route 明确终止；多个 orchestrator 按优先级形成有限且无重复的候选序列。Python 回归验证生成 metadata 和 Markdown contract，不声称执行了 Codex live routing。
 
 ## §7 负载控制与增长回归
 
@@ -265,7 +273,7 @@ P4 的核心不是“两个 Skill 能被复制”，而是“Skill 集合增长�
 - 扩展：router + 至少 50 个 synthetic active entrypoint modules，分布到三个 scenario；
 - 两次构建后 `<target-root>` 中本平台管理的顶层 Skill 数都为 1；
 - router `SKILL.md` 和 `agents/openai.yaml` 字节完全不因 module 数变化；
-- `_platform/routes/index.*` 字节不随 module 数线性增长，只允许固定 scenario metadata；
+- `_platform/routes/index.*` 字节不随 scenario module 数增长；该测试保持 global routes 不变；
 - 只有对应 scenario shard 增长；
 - `library/` 增长不改变顶层 catalog；
 - planned synthetic modules 不进入 active shards。
@@ -292,7 +300,7 @@ P4 的核心不是“两个 Skill 能被复制”，而是“Skill 集合增长�
 ## §9 实施顺序
 
 1. Baseline：确认 P3 commit clean，validator + 全测试绿；记录现有用户级 `vba-skill` 和项目级 recycling skill 只作“不触碰”边界，不读取无关内容。
-2. Manifest v3：加入 deployment_role、router entry，并扩 validator cardinality/coverage/reachability/path containment gate。
+2. Manifest v4：加入 deployment_role、router entry，并扩 validator cardinality/coverage/reachability/path containment gate。
 3. Router source：新增薄 `global-skill-router/SKILL.md` + metadata；不得先写 module catalog 到正文。
 4. Pure payload builder：在 tmp_path 构造 router + library + route shards + deployment state，不触碰真实 `~/.codex`。
 5. Deploy plan/verify：实现 dry-run、hash/state、drift 校验。
@@ -307,9 +315,9 @@ P4 的核心不是“两个 Skill 能被复制”，而是“Skill 集合增长�
 
 P4 只有同时满足以下条件才可改为 `done`：
 
-1. manifest 为 schema v3，恰有一个 active `deployment_role: router`，其余 active framework/worker 为 module；P1/P2/P3 gate 保持绿。
+1. manifest 为 schema v4，恰有一个 active `deployment_role: router`，其余 active framework/worker 为 module；P1/P2/P3 gate 保持绿。
 2. `global-skill-router` 为薄入口，其正文不复制 module contract，不列出完整 module catalog，不扫描 library。
-3. route index 分层生成：固定 scenario index + scenario shards；planned 条目不成为可执行候选。
+3. route index 分层生成：global routes + 固定 scenario index + scenario shards；priority 与 continuation 独立；planned 条目不成为可执行候选。
 4. deploy manager 默认 dry-run；apply 只管理 `global-skill-router` 目标及专用 snapshot，不修改其他 Skill。
 5. 安装 payload 自足：router 可相对路径读取 route/module；module 可继续加载自身 profiles/adapters/references；不依赖源码 repo 顶层 references。
 6. apply 支持首次安装、no-op、更新；失败能恢复旧 target；verify 能检测 drift；rollback 能恢复 previous snapshot。
