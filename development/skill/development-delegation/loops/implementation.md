@@ -6,11 +6,11 @@ Use only when the current phase already has a usable detailed phase plan.
 
 1. Load the active phase plan and persisted status.
 2. Select one ready implementation unit whose dependencies are satisfied.
-3. Delegate only the repository/document/code questions needed for that unit; parallelize independent scout work.
+3. Delegate only the repository/document/code questions needed for that unit to the host's native subagent interface using the session-selected global `scout_identity`; parallelize independent scout work.
 4. Build a bounded implementation brief from direct evidence.
-5. Delegate the code change to the implementer.
-6. Delegate build/test/runtime/manual validation to the test executor.
-7. On failure, return decisive evidence to the implementer. Re-scout only when evidence is stale or incomplete.
+5. Delegate the code change through native subagent dispatch to the session-selected global `implementer_identity` (`implementer` or `implementer-deepseek`).
+6. Delegate build/test/runtime/manual validation through native subagent dispatch to the session-selected global `tester_identity` (`tester` or `tester-deepseek`).
+7. On failure, return decisive evidence to the same selected `implementer_identity`. Re-scout with `scout_identity` only when evidence is stale or incomplete.
 8. Accept the unit only when every criterion has direct validation evidence. Persist status before selecting another unit.
 9. If work reveals a missing architecture decision, invalid phase assumption, or required scope expansion, return `ESCALATE_PLAN` and route to the planning loop.
 

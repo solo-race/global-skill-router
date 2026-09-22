@@ -1,4 +1,4 @@
 interface:
   display_name: "Development Delegation"
-  short_description: "Plan and implement with supervision and review gates."
-  default_prompt: "Use $development-delegation to establish session supervision, plan the current phase as needed, and delegate implementation with validation and applicable review."
+  short_description: "Plan and implement with session-selected agents and review gates."
+  default_prompt: "Use $development-delegation to select session scout, implementer, and tester identities before setting supervision, plan as needed, and delegate implementation with validation and applicable review."

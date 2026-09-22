@@ -14,19 +14,19 @@ Planning must leave the current phase executable. A phase name or roadmap bullet
 
 ## 2. Gather evidence cheaply
 
-The main supervisor delegates project-document and repository discovery to scouts. Build `references/planning-packet.md` from source-backed facts rather than a free-form summary. Include relevant documents, current architecture/contracts, existing plan state, tests, dependencies, constraints, and unresolved questions.
+The main supervisor calls the host's native subagent interface using the session-selected global `scout_identity` (`scout` or `scout-deepseek`) for project-document and repository discovery. Build `references/planning-packet.md` from source-backed facts rather than a free-form summary. Include relevant documents, current architecture/contracts, existing plan state, tests, dependencies, constraints, and unresolved questions.
 
 Do not make the high-reasoning planner rediscover the repository unless a narrow follow-up inspection is essential.
 
 ## 3. Planner reasoning loop
 
-Send the planning packet to the planner. The planner returns one of:
+Send the planning packet through native subagent dispatch to the existing global `planner` identity. The planner returns one of:
 
 - `NEED_EVIDENCE` with precise missing questions;
 - `PLAN_DRAFT` containing the project-plan changes, current-phase plan, assumptions, and unresolved decisions;
 - `BLOCKED` when the plan requires an authority decision that evidence cannot resolve.
 
-For `NEED_EVIDENCE`, delegate only the requested questions to scouts, append the new evidence to the packet, and invoke the planner again.
+For `NEED_EVIDENCE`, delegate only the requested questions to the selected global `scout_identity`, append the new evidence to the packet, and invoke the same global `planner` identity again.
 
 ## 4. Materialize the plan
 

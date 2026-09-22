@@ -9,11 +9,25 @@ Load this skill once in the main supervisor. The supervisor owns routing and sta
 
 ## Mandatory session gate
 
-On first activation, if supervision has not already been explicitly declared for this session, ask exactly one user decision before starting work:
+At first activation for a session, before repository discovery, planning, or implementation, ensure the session role identities have been selected. If they have not, ask the session operator to choose one globally registered identity for each role:
+
+- Scout: `scout` or `scout-deepseek`
+- Implementer: `implementer` or `implementer-deepseek`
+- Test executor: `tester` or `tester-deepseek`
+
+Use the host's structured choice controls when available. Otherwise, present all three pairs and request the three exact IDs in one reply. Store the choices as `scout_identity`, `implementer_identity`, and `tester_identity`; keep them stable for the session unless the user changes them. Do not begin task work until all three are set.
+
+After role selection, if supervision has not already been explicitly declared for this session, ask exactly one separate user decision:
 
 `Session supervision: is a human supervisor actively present for this session? [Yes/No]`
 
 Set `human_supervisor=true` for Yes and `false` for No. Do not infer supervision from time of day, user activity, or prior sessions. Keep the value stable for the session unless the user changes it.
+
+## Global agent dispatch
+
+The declarations in `agents/registry.example.toml` are deployment examples. The deployment must make the corresponding role TOMLs available as globally registered native agents before this skill can dispatch them.
+
+For every role assignment, the main supervisor must call the host's native subagent interface using the exact global identity selected for that role. Use `scout_identity`, `implementer_identity`, or `tester_identity` for those roles; use the existing global `planner` and `reviewer` identities for planning and review. Do not perform delegated work inline or silently substitute a different identity or model. If an identity is not registered or its model route is unavailable, stop that assignment and report the missing deployment configuration.
 
 ## Route selection
 

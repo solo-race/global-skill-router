@@ -1,3 +1,5 @@
+name = "implementer"
+description = "Bounded code implementer. Changes only the prepared implementation scope; validation is external."
 model = "gpt-6-astra"
 model_reasoning_effort = "high"
 sandbox_mode = "workspace-write"

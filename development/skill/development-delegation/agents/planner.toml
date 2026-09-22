@@ -1,3 +1,5 @@
+name = "planner"
+description = "High-reasoning planner. Converts a prepared evidence packet into a master/current-phase plan or precise evidence requests."
 model = "gpt-6-astra"
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"
