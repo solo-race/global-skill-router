@@ -9,13 +9,13 @@ Load this skill once in the main supervisor. The supervisor owns routing and sta
 
 ## Mandatory session gate
 
-At first activation for a session, before repository discovery, planning, or implementation, ensure the session role identities have been selected. If they have not, ask the session operator to choose one globally registered identity for each role:
+At first activation for a session, before repository discovery, planning, or implementation, run `scripts/router_preflight.py` with Python 3.11 or newer. It reads the active user-level Codex config, installed role profiles, and local model catalog. It does not modify files or make inference requests.
 
-- Scout: `scout` or `scout-deepseek`
-- Implementer: `implementer` or `implementer-deepseek`
-- Test executor: `tester` or `tester-deepseek`
+Offer `scout-deepseek`, `implementer-deepseek`, or `tester-deepseek` only when that exact profile reports `available: true`. The active Codex provider must route through an installed Codex Router, and the local catalog must advertise the profile's exact route with `multi_agent_version = "v2"`. If preflight is blocked or cannot run, mark DeepSeek identities unavailable and offer only registered native roles. Do not send the upstream ID `deepseek-flash` directly to Codex, add a per-agent `model_provider = "deepseek"`, or silently substitute another model.
 
-Use the host's structured choice controls when available. Otherwise, present all three pairs and request the three exact IDs in one reply. Store the choices as `scout_identity`, `implementer_identity`, and `tester_identity`; keep them stable for the session unless the user changes them. Do not begin task work until all three are set.
+The DeepSeek custom agent's Codex-facing model slug is `deepseek/deepseek-v4.1-flash`; Codex Router maps it to the upstream provider model ID `deepseek-flash`. A v2 catalog entry is still only static readiness. On the first delegated task that uses this route in a session, make that assignment read-only, require a unique marker in its result, and verify the actual route from Router request metadata before allowing writes or test execution through DeepSeek. Set `deepseek_runtime_verified=true` only after both the marker and route are confirmed. If the child fails or its route cannot be verified, mark all DeepSeek identities unavailable for the rest of the session and stop the assignment. The optional `--check-local-router` flag only GETs the local `/models` catalog and never proves a child spawn.
+
+If role identities have not been selected, ask the session operator to choose one available globally registered identity for each role. Use `scout`, `implementer`, or `tester` as the native options; add the matching `*-deepseek` option only when preflight marks it available. Use the host's structured choice controls when available. Otherwise, show the currently available IDs and request the three exact choices in one reply. Store the choices as `scout_identity`, `implementer_identity`, and `tester_identity`; keep them stable for the session unless the user changes them. Do not begin task work until all three are set.
 
 After role selection, if supervision has not already been explicitly declared for this session, ask exactly one separate user decision:
 

@@ -1,7 +1,6 @@
 name = "tester-deepseek"
-description = "External validation executor using the DeepSeek provider. Runs requested checks and reports reproducible evidence without repairing failures."
-model = "deepseek-flash"
-model_provider = "deepseek"
+description = "External validation executor using the configured DeepSeek route through Codex Router. Runs requested checks and reports reproducible evidence without repairing failures."
+model = "deepseek/deepseek-v4.1-flash"
 model_reasoning_effort = "low"
 sandbox_mode = "workspace-write"
 

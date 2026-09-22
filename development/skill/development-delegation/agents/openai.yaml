@@ -1,4 +1,4 @@
 interface:
   display_name: "Development Delegation"
   short_description: "Plan and implement with session-selected agents and review gates."
-  default_prompt: "Use $development-delegation to select session scout, implementer, and tester identities before setting supervision, plan as needed, and delegate implementation with validation and applicable review."
+  default_prompt: "Use $development-delegation to preflight the configured Codex Router route, select only available scout, implementer, and tester identities, then set supervision and delegate with validation and applicable review."

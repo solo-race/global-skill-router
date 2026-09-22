@@ -1,15 +1,17 @@
 # Copy role TOMLs into the deployment's `agents/` directory, then copy these declarations into its Codex `config.toml`.
 # Relative config_file paths resolve from that config.toml.
-# The DeepSeek profiles set model_provider = "deepseek" and model = "deepseek-flash".
-# The user-level config must define [model_providers.deepseek] and the provider must serve that model id.
-# reviewer.toml intentionally leaves model/provider to the deployment.
+# DeepSeek profiles select the Codex Router route slug deepseek/deepseek-v4.1-flash.
+# The Router maps that slug to the upstream model ID deepseek-flash; it is not a Codex-facing model name.
+# The active Codex provider must point to an installed/authenticated loopback Router whose local catalog
+# advertises this exact route with multi_agent_version = "v2". Preflight the route before offering these roles.
+# reviewer.toml intentionally leaves its model/provider settings to the deployment.
 
 [agents.scout]
 description = "Read-only repository and document scout. Returns source-backed evidence without implementation."
 config_file = "./agents/scout.toml"
 
 [agents.scout-deepseek]
-description = "Read-only repository and document scout using the DeepSeek provider. Returns source-backed evidence without implementation."
+description = "Read-only repository and document scout using the DeepSeek route through Codex Router. Returns source-backed evidence without implementation."
 config_file = "./agents/scout-deepseek.toml"
 
 [agents.planner]
@@ -21,7 +23,7 @@ description = "Bounded code implementer. Changes only the prepared implementatio
 config_file = "./agents/implementer.toml"
 
 [agents.implementer-deepseek]
-description = "Bounded code implementer using the DeepSeek provider. Changes only the prepared implementation scope; validation is external."
+description = "Bounded code implementer using the DeepSeek route through Codex Router. Changes only the prepared implementation scope; validation is external."
 config_file = "./agents/implementer-deepseek.toml"
 
 [agents.tester]
@@ -29,7 +31,7 @@ description = "External validation executor. Runs requested checks and reports r
 config_file = "./agents/tester.toml"
 
 [agents.tester-deepseek]
-description = "External validation executor using the DeepSeek provider. Runs requested checks and reports reproducible evidence without repairing failures."
+description = "External validation executor using the DeepSeek route through Codex Router. Runs requested checks and reports reproducible evidence without repairing failures."
 config_file = "./agents/tester-deepseek.toml"
 
 [agents.reviewer]

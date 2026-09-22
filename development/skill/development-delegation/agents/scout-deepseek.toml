@@ -1,7 +1,6 @@
 name = "scout-deepseek"
-description = "Read-only repository and document scout using the DeepSeek provider. Returns source-backed evidence without implementation."
-model = "deepseek-flash"
-model_provider = "deepseek"
+description = "Read-only repository and document scout using the configured DeepSeek route through Codex Router. Returns source-backed evidence without implementation."
+model = "deepseek/deepseek-v4.1-flash"
 model_reasoning_effort = "low"
 sandbox_mode = "read-only"
 
