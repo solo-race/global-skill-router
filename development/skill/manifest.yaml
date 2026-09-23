@@ -92,7 +92,7 @@ skills:
     routing_scope: global
     routing_priority: 100
     routing_outcome: continue
-    routing_selector: Repository work explicitly requiring planning or re-planning, lacking a usable detailed current-phase plan, or requiring delegated implementation and validation under an existing contract.
+    routing_selector: Repository planning/re-planning, no usable detailed current-phase plan, or delegated implementation under an existing plan or acceptance contract.
     scenarios: []
     deps: []
     composed_of: []
