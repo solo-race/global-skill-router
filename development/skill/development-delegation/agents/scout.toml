@@ -1,6 +1,6 @@
 name = "scout"
 description = "Read-only repository and document scout. Returns source-backed evidence without implementation."
-model = "gpt-5.6-luna"
+model = "gpt-6-sol"
 model_reasoning_effort = "low"
 sandbox_mode = "read-only"
 

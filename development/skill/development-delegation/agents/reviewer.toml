@@ -1,6 +1,6 @@
 name = "reviewer"
 description = "Independent read-only reviewer for unattended phase close and optional unattended plan review. Model/provider may be selected by deployment or OMP."
-# Model/provider intentionally omitted: deployment or OMP may select the reviewer independently.
+model_id = "gpt-6-astra"
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 
