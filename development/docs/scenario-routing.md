@@ -8,7 +8,7 @@ this page must not be edited as a second route registry.
 
 | Scope | Intent / control plane | Current route | State |
 |---|---|---|---|
-| `global` | Orchestrate an existing implementation/acceptance contract | `development-delegation` | active; priority 100; continue |
+| `global` | Explicit planning/re-planning, missing current-phase plan, or delegated implementation under an existing contract | `development-delegation` | active; priority 100; continue |
 | `win-access-vba` | Host/tool inspection, mutation, and testing | `runtime-ops` + `vba-office` | active |
 | `win-access-vba` | SQL Server runtime operations | `runtime-ops` + `sql-server` | planned; no adapter capability yet |
 | `win-android` | Kotlin Toolchain, KMP, and AGP-specific decisions | `kotlin-tooling` → continue | active; priority 10 |

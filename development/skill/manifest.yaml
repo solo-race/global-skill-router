@@ -92,13 +92,13 @@ skills:
     routing_scope: global
     routing_priority: 100
     routing_outcome: continue
-    routing_selector: Existing implementation plan or acceptance contract requiring delegated implementation and validation.
+    routing_selector: Repository work explicitly requiring planning or re-planning, lacking a usable detailed current-phase plan, or requiring delegated implementation and validation under an existing contract.
     scenarios: []
     deps: []
     composed_of: []
     entrypoint: true
     version: "0.1.0"
-    description: Execute existing implementation contracts through bounded delegation and evidence gates.
+    description: Plan or re-plan repository work, or execute an existing implementation contract through bounded delegation and evidence gates.
   - name: global-skill-router
     path: development/skill/global-skill-router
     status: active
