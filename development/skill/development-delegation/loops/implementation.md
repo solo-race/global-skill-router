@@ -6,7 +6,7 @@ Use only when the current phase already has a usable detailed phase plan.
 
 1. Load the active phase plan and persisted status.
 2. Select one ready implementation unit whose dependencies are satisfied.
-3. Delegate only the repository/document/code questions needed for that unit to the host's native subagent interface using the session-selected global `scout_identity`; parallelize independent scout work.
+3. Delegate only the repository/document/code questions needed for that unit to the host's native subagent interface using the session-selected global `scout_identity`; parallelize independent scout work. Ordinary scouting is the default; add a bounded `codebase-memory-scout` graph pass only when the unit's files and symbols are not yet known and cross-file relationships materially guide the change, and never let the two cover the same ground (`loops/planning.md` section 2 holds the selection conditions and the fallback rules). Verify the relevant current source before building the brief or drawing a consequential impact conclusion.
 4. Build a bounded implementation brief from direct evidence.
 5. Delegate the code change through native subagent dispatch to the session-selected global `implementer_identity` (`implementer` or `implementer-deepseek`).
 6. Delegate build/test/runtime/manual validation through native subagent dispatch to the session-selected global `tester_identity` (`tester` or `tester-deepseek`).

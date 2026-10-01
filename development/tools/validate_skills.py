@@ -13,6 +13,11 @@ profile YAML file pass profile_errors() (schema version, closed field set, close
 top-level ABI, unique dimensions, binding triples, extension placement, etc.).
 External entries and entries without profiles/ are unaffected.
 
+Additionally validates managed role templates under each skill's agents/ directory
+(plan 080 P4): every *.toml is parsed, a role template accepts only the documented
+top-level keys, a registration example is exempt, and template-versus-registered drift
+is reported informationally without modifying owner runtime roles.
+
 Third-party dependency: PyYAML (yaml.safe_load for manifest and frontmatter
 parsing); declared in AGENTS.md Core Rule 5.
 
@@ -28,6 +33,11 @@ import sys
 from pathlib import Path, PurePosixPath
 
 import yaml
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.9/3.10: role-template key checks are skipped.
+    tomllib = None
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MANIFEST = REPO_ROOT / "development" / "skill" / "manifest.yaml"
@@ -58,6 +68,14 @@ PROFILE_KNOWN_FIELDS = frozenset({
 PROFILE_EXTENSION_PREFIX = "profile_extensions."
 PROFILE_ASSESSABLE_STATUSES = frozenset({"active", "planned"})
 
+ROLE_TEMPLATE_KEYS = frozenset({
+    "name", "description", "model", "model_provider", "model_reasoning_effort",
+    "sandbox_mode", "developer_instructions", "mcp_servers", "tools",
+})
+REGISTRATION_EXAMPLE_KEY = "agents"
+REGISTRATION_DRIFT_FIELDS = ("model", "model_provider", "model_reasoning_effort", "sandbox_mode")
+DEFAULT_REGISTERED_AGENTS_DIR = Path.home() / ".codex" / "agents"
+
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
@@ -67,6 +85,14 @@ def parse_args(argv=None):
         "--manifest",
         default=str(DEFAULT_MANIFEST),
         help="path to manifest.yaml (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--registered-agents-dir",
+        default=None,
+        help=(
+            "directory of registered role TOMLs to compare templates against "
+            "(default: ~/.codex/agents when present)"
+        ),
     )
     return parser.parse_args(argv)
 
@@ -83,6 +109,7 @@ def _report(
     sources_checked=0,
     adapters_checked=0,
     routes=None,
+    registration=None,
 ):
     return {
         "ok": ok,
@@ -91,6 +118,7 @@ def _report(
         "sources_checked": sources_checked,
         "adapters_checked": adapters_checked,
         "routes": routes or {},
+        "registration": registration or {},
         "errors": errors,
     }
 
@@ -1097,7 +1125,86 @@ def _route_errors(routes):
     return errors
 
 
-def validate(manifest_path):
+def _agent_template_errors(skill_dir, skill_name):
+    """Validate role templates under agents/ without touching registered runtime roles."""
+    if tomllib is None:
+        return []
+    agents_dir = Path(skill_dir) / "agents"
+    if not agents_dir.is_dir():
+        return []
+    errors = []
+    for path in sorted(agents_dir.glob("*.toml")):
+        try:
+            data = tomllib.loads(path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            errors.append(
+                _err("AGENT_TEMPLATE_PARSE_ERROR", skill_name, f"{path.name}: {type(exc).__name__}")
+            )
+            continue
+        if REGISTRATION_EXAMPLE_KEY in data:
+            if not isinstance(data[REGISTRATION_EXAMPLE_KEY], dict):
+                errors.append(
+                    _err(
+                        "AGENT_REGISTRATION_INVALID",
+                        skill_name,
+                        f"{path.name}: '{REGISTRATION_EXAMPLE_KEY}' must be a table",
+                    )
+                )
+            continue
+        unknown = sorted(set(data) - ROLE_TEMPLATE_KEYS)
+        if unknown:
+            errors.append(
+                _err(
+                    "AGENT_TEMPLATE_UNKNOWN_KEY",
+                    skill_name,
+                    f"{path.name}: unrecognized top-level key(s) {unknown}",
+                )
+            )
+    return errors
+
+
+def _registration_drift(skill_dir, skill_name, registered_agents_dir):
+    """Report, never enforce, template differences from the registered runtime role."""
+    if tomllib is None or registered_agents_dir is None:
+        return []
+    agents_dir = Path(skill_dir) / "agents"
+    if not agents_dir.is_dir():
+        return []
+    drift = []
+    for path in sorted(agents_dir.glob("*.toml")):
+        try:
+            template = tomllib.loads(path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        if REGISTRATION_EXAMPLE_KEY in template:
+            continue
+        declared_name = template.get("name")
+        identity = declared_name if isinstance(declared_name, str) and declared_name else path.stem
+        registered_path = Path(registered_agents_dir) / f"{identity}.toml"
+        if not registered_path.is_file():
+            continue
+        try:
+            registered = tomllib.loads(registered_path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        differences = {
+            field: {"template": template.get(field), "registered": registered.get(field)}
+            for field in REGISTRATION_DRIFT_FIELDS
+            if template.get(field) != registered.get(field)
+        }
+        if differences:
+            drift.append(
+                {
+                    "skill": skill_name,
+                    "template": path.name,
+                    "identity": identity,
+                    "differences": differences,
+                }
+            )
+    return sorted(drift, key=lambda item: (item["skill"], item["template"]))
+
+
+def validate(manifest_path, registered_agents_dir=None):
     """Run the full schema-v4 control-plane check and return its report."""
     manifest_path = Path(manifest_path)
     errors = []
@@ -1134,6 +1241,25 @@ def validate(manifest_path):
         errors.append(_err("DUPLICATE_NAME", duplicate, "duplicate skill name in manifest"))
     _validate_edges(entries, errors)
     _deployment_errors(entries, errors)
+
+    if registered_agents_dir is None:
+        resolved_agents_dir = (
+            DEFAULT_REGISTERED_AGENTS_DIR if DEFAULT_REGISTERED_AGENTS_DIR.is_dir() else None
+        )
+    else:
+        candidate = Path(registered_agents_dir).expanduser()
+        resolved_agents_dir = candidate if candidate.is_dir() else None
+    registration_drift = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        entry_name = entry.get("name")
+        entry_path = entry.get("path")
+        if not isinstance(entry_name, str) or not isinstance(entry_path, str):
+            continue
+        skill_dir = root / entry_path
+        errors.extend(_agent_template_errors(skill_dir, entry_name))
+        registration_drift.extend(_registration_drift(skill_dir, entry_name, resolved_agents_dir))
 
     skill_statuses = {
         entry.get("name"): entry.get("status")
@@ -1182,12 +1308,16 @@ def validate(manifest_path):
         sources_checked=len(sources),
         adapters_checked=len(adapters),
         routes=routes,
+        registration={
+            "registered_agents_dir": str(resolved_agents_dir) if resolved_agents_dir else None,
+            "drift": registration_drift,
+        },
     )
 
 
 def main(argv=None):
     args = parse_args(argv)
-    report = validate(args.manifest)
+    report = validate(args.manifest, args.registered_agents_dir)
     for error in report["errors"]:
         print(f"{error['code']} {error['skill']}: {error['message']}", file=sys.stderr)
     sys.stdout.write(json.dumps(report, indent=2, sort_keys=True) + "\n")

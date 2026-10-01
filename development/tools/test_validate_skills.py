@@ -133,7 +133,14 @@ def _build_tree(tmp_path, entries, probe_dirs=(), create_external=True, sources=
     return manifest
 
 
-def _run(tmp_path, entries, probe_dirs=(), create_external=True, sources=None):
+def _run(
+    tmp_path,
+    entries,
+    probe_dirs=(),
+    create_external=True,
+    sources=None,
+    registered_agents_dir=None,
+):
     manifest = _build_tree(
         tmp_path,
         entries,
@@ -141,7 +148,7 @@ def _run(tmp_path, entries, probe_dirs=(), create_external=True, sources=None):
         create_external,
         sources=sources,
     )
-    return validate_skills.validate(manifest)
+    return validate_skills.validate(manifest, registered_agents_dir)
 
 
 def _codes(report):
@@ -616,6 +623,7 @@ def test_report_shape_and_exit_code(tmp_path, monkeypatch, capsys):
         "sources_checked",
         "adapters_checked",
         "routes",
+        "registration",
         "errors",
     }
     assert report["ok"] is True
@@ -924,6 +932,110 @@ def test_repo_manifest_passes_profile_gate():
     report = validate_skills.validate(validate_skills.DEFAULT_MANIFEST)
     assert report["errors"] == []
     assert report["ok"] is True
+
+
+def _write_agent_template(tmp_path, skill_name, filename, text):
+    agents_dir = tmp_path / "development" / "skill" / skill_name / "agents"
+    agents_dir.mkdir(parents=True, exist_ok=True)
+    (agents_dir / filename).write_text(text, encoding="utf-8")
+    return agents_dir
+
+
+def test_agent_template_rejects_unrecognized_key(tmp_path):
+    _write_skill_md(tmp_path / "development" / "skill" / "runtime-ops", name="runtime-ops")
+    _write_agent_template(
+        tmp_path,
+        "runtime-ops",
+        "reviewer.toml",
+        'name = "reviewer"\nmodel_id = "gpt-6-astra"\nsandbox_mode = "read-only"\n',
+    )
+
+    report = _run(tmp_path, _green_entries(), registered_agents_dir=tmp_path / "absent")
+
+    assert "AGENT_TEMPLATE_UNKNOWN_KEY" in _codes(report)
+
+
+def test_agent_template_accepts_documented_keys(tmp_path):
+    _write_skill_md(tmp_path / "development" / "skill" / "runtime-ops", name="runtime-ops")
+    _write_agent_template(
+        tmp_path,
+        "runtime-ops",
+        "scout.toml",
+        'name = "scout"\ndescription = "scout"\nmodel = "gpt-6.1-sol"\n'
+        'model_provider = "codex_router"\nmodel_reasoning_effort = "medium"\n'
+        'sandbox_mode = "read-only"\ndeveloper_instructions = "Role: SCOUT."\n',
+    )
+
+    report = _run(tmp_path, _green_entries(), registered_agents_dir=tmp_path / "absent")
+
+    assert report["errors"] == []
+
+
+def test_agent_registration_example_is_exempt(tmp_path):
+    _write_skill_md(tmp_path / "development" / "skill" / "runtime-ops", name="runtime-ops")
+    _write_agent_template(
+        tmp_path,
+        "runtime-ops",
+        "registry.example.toml",
+        '[agents.reviewer]\ndescription = "example"\nconfig_file = "./agents/reviewer.toml"\n',
+    )
+
+    report = _run(tmp_path, _green_entries(), registered_agents_dir=tmp_path / "absent")
+
+    assert "AGENT_TEMPLATE_UNKNOWN_KEY" not in _codes(report)
+    assert report["errors"] == []
+
+
+def test_malformed_agent_template_is_reported(tmp_path):
+    _write_skill_md(tmp_path / "development" / "skill" / "runtime-ops", name="runtime-ops")
+    _write_agent_template(tmp_path, "runtime-ops", "broken.toml", 'name = "broken"\nmodel = [\n')
+
+    report = _run(tmp_path, _green_entries(), registered_agents_dir=tmp_path / "absent")
+
+    assert "AGENT_TEMPLATE_PARSE_ERROR" in _codes(report)
+
+
+def test_registered_role_drift_is_reported_without_failing(tmp_path):
+    _write_skill_md(tmp_path / "development" / "skill" / "runtime-ops", name="runtime-ops")
+    _write_agent_template(
+        tmp_path,
+        "runtime-ops",
+        "reviewer.toml",
+        'name = "reviewer"\ndescription = "reviewer"\nmodel = "gpt-6-astra"\n'
+        'model_reasoning_effort = "xhigh"\nsandbox_mode = "read-only"\n',
+    )
+    registered = tmp_path / "registered"
+    registered.mkdir()
+    (registered / "reviewer.toml").write_text(
+        'name = "reviewer"\nmodel = "gpt-6-sol"\nmodel_reasoning_effort = "high"\n'
+        'sandbox_mode = "read-only"\n',
+        encoding="utf-8",
+    )
+
+    report = _run(tmp_path, _green_entries(), registered_agents_dir=registered)
+
+    assert report["ok"] is True
+    assert report["errors"] == []
+    drift = report["registration"]["drift"]
+    assert [item["identity"] for item in drift] == ["reviewer"]
+    assert drift[0]["differences"]["model"] == {
+        "template": "gpt-6-astra",
+        "registered": "gpt-6-sol",
+    }
+    assert drift[0]["differences"]["model_reasoning_effort"] == {
+        "template": "xhigh",
+        "registered": "high",
+    }
+    assert "sandbox_mode" not in drift[0]["differences"]
+
+
+def test_absent_registered_agents_dir_is_skipped(tmp_path):
+    _write_skill_md(tmp_path / "development" / "skill" / "runtime-ops", name="runtime-ops")
+
+    report = _run(tmp_path, _green_entries(), registered_agents_dir=tmp_path / "absent")
+
+    assert report["ok"] is True
+    assert report["registration"]["drift"] == []
 
 
 @pytest.mark.parametrize(

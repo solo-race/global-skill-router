@@ -1,6 +1,6 @@
 name = "implementer-deepseek"
-description = "Bounded code implementer using the configured DeepSeek route through Codex Router. Changes only the prepared implementation scope; validation is external."
-model = "deepseek/deepseek-v4.1-flash"
+description = "Bounded code implementer using the configured DeepSeek runtime route. Changes only the prepared implementation scope; validation is external."
+model = "deepseek-flash"
 model_reasoning_effort = "high"
 sandbox_mode = "workspace-write"
 

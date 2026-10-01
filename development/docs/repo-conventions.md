@@ -40,6 +40,7 @@ For heavier skills, extend toward the five-layer stack reviewed in `architecture
 - `development/skill/` — platform skill library: `manifest.yaml` registry plus rebuilt skills (staging target for the rebuild).
 - `development/skill-repos/` — independent Git source libraries, each retaining its own `.git`; local checkouts are ignored by the enclosing repository and registered in the manifest's `sources[]`.
 - `development/docs/` — project documentation (`architecture-ref/` module reviews, this file, [`plans/`](plans/) execution roadmap, and the derived [`scenario-routing.md`](scenario-routing.md)).
+- `development/legacy/` — retired experiments and superseded runtime helpers retained only for historical reference; never part of the active Skill or deployment payload.
 - `.github/`, `.codex/` — exist but empty; purpose not yet defined.
 
 ## Code Conventions & Common Patterns
@@ -95,8 +96,8 @@ For heavier skills, extend toward the five-layer stack reviewed in `architecture
   its root `agents/openai.yaml` is omitted; internal agent profiles and other runtime
   files remain available to the router.
   Existing `agents/`, `references/`, `profiles/`, `adapters/`, and `scripts/` directories
-  travel with their owning Skill. `development/tools/`, plans, and read-only source references
-  never enter the payload.
+  travel with their owning Skill. `development/tools/`, `development/legacy/`, plans, and
+  read-only source references never enter the payload.
 - **Routing rule:** active modules default to `routing_scope: scenario` and are projected only
   into their declared `scenarios[]` shards. A cross-scenario task-intent module may instead
   declare `routing_scope: global`, a short `routing_selector`, and `scenarios: []`; active global

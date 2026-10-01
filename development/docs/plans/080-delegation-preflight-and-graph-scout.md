@@ -1,9 +1,12 @@
-# Delegation preflight and graph-scout integration plan
+# Delegation preflight and graph-scout integration plan — legacy record
 
-Status: PROPOSED — documentation only; no implementation or live validation performed.
+Status: SUPERSEDED / LEGACY.
 Date: 2026-09-30 (UTC+08:00).
+Retired: 2026-10-01 (UTC+08:00).
 Baseline: global-skill-set/master at 762770d23ccb21cd2835af0c916bb66da4c34ca5.
 Owner request: document the preflight gaps, role ownership, and codebase-memory-scout integration in this local repository.
+
+Retirement decision: OpenCodex experiments established that the extra route-readiness layer is not needed for normal delegated execution. The active `development-delegation` Skill therefore no longer invokes, documents, or deploys the bootstrap/router-preflight/runtime-receipt chain. The implementation is archived under `development/legacy/delegation-preflight/` for historical reference only and is outside the active deployment and default pytest surface. Graph-scout orchestration that remains useful is retained in the active Skill. The historical sections below are non-normative and must not be treated as current runtime requirements.
 
 ## 1. Goal and boundaries
 
@@ -78,6 +81,10 @@ The skill requires Python >=3.11, but supplies no deterministic interpreter disc
 
 The owner reports a first-run "no Python environment" error. The exact original stderr was not captured, so PATH, app-execution aliases, interpreter version, execution denial and other launch failures remain hypotheses. Do not claim Python is absent from the machine.
 
+Observed 2026-09-30 (P1; sandbox versus unrestricted policy):
+- Default PATH discovery reproduces the reported first-run failure inside the Codex sandbox: `py -3` exits 1 with "No suitable Python runtime found", `python` exits 1 without running the interpreter, and `python3` is not resolvable.
+- The same candidates and the repository virtualenv work under an unrestricted policy, so this is an execution-policy denial class rather than a missing interpreter. The launcher must classify it and must never install or download anything.
+
 ### 2.4 Role ownership and deployment drift
 
 deploy_skills.py copies internal module role files into the managed payload. It does not register them into the user's Codex config. registry.example.toml currently recommends copying role TOMLs into a separate agents directory.
@@ -88,6 +95,20 @@ During review, the deployed MODULE.md differed from source: it contained AI_IGNO
 The owner removed the markers. A fresh bridge read at approximately 21:13 UTC+08:00 confirmed no AI_IGNORE lines in the deployed module; SHA-256:
 ab242249bc3ba15f88cc04818f19cf0369f87ad7bb8982b2925808c815637c72.
 Do not reintroduce the removed markers. Removal does not establish that all remaining source/deployment differences are reconciled.
+
+Observed 2026-09-30 (filesystem and bridge read; re-read before implementing):
+- The deployed `global-skill-router/library/development-delegation/` under the user Codex skills root contains only `loops/`, `modules/`, `references/`, `scripts/` and `MODULE.md`; the entire `agents/` directory is absent.
+- The deployed `_platform/deployment-state.json` still lists nine `library/development-delegation/agents/*.toml` payload entries, so recorded state does not match deployed disk and deployment verification would report missing managed files.
+- All shared files under `loops/`, `modules/`, `references/` and `scripts/` are byte-identical to source; the observed drift is confined to `MODULE.md` wording plus the missing `agents/` directory.
+- The deployed `MODULE.md` uses fixed `scout`/`implementer`/`tester` dispatch and contains an extra supervision paragraph absent from current source `SKILL.md`.
+- The `SKILL.md` gate forbids per-agent `model_provider = "deepseek"`, contradicting section 3.2's allowance for explicit role provider overrides and the host's registered `scout-deepseek`, `implementer-deepseek` and `tester-deepseek` definitions with `model = "deepseek-flash"` plus `model_provider = "deepseek"`; P2 must resolve this contradiction without changing routing semantics in P0.
+
+- Role template inventory (review finding 080-P0-R3-01): source `development/skill/development-delegation/agents/` versus registered roles under the user Codex agents directory:
+  - Source templates declare `scout.toml` model `gpt-6-sol`, `implementer.toml` model `gpt-6-sol`, `tester.toml` model `gpt-6-luna`, `planner.toml` model `gpt-6-astra`, `reviewer.toml` key `model_id` value `gpt-6-astra`, and `scout-deepseek.toml`, `implementer-deepseek.toml` and `tester-deepseek.toml` model `deepseek/deepseek-v4.1-flash`. No template exists for `codebase-memory-scout`.
+  - Registered roles declare `scout` model `gpt-6.1-sol`, `implementer` model `gpt-6-astra`, `tester` model `gpt-6-luna`, `planner` model `gpt-6-astra`, `reviewer` model `gpt-6-astra`, `scout-deepseek`, `implementer-deepseek` and `tester-deepseek` model `deepseek-flash` with provider `deepseek`, and `codebase-memory-scout` model `deepseek-flash`. Reasoning-effort values differ for most roles.
+  - Source `reviewer.toml` uses `model_id`, whereas registered role files use `model`, so the template cannot be copied verbatim.
+  - Source `scout.toml` and `implementer.toml` name `gpt-6-sol`, which is neither registered model `gpt-6.1-sol` nor `gpt-6-astra`; the DeepSeek templates name `deepseek/deepseek-v4.1-flash`, which the user model catalog does not advertise.
+  - Ownership is unchanged: registered role TOMLs remain authoritative for model, effort, permissions and tool bindings; module templates are examples and must never overwrite registered runtime settings.
 
 ### 2.5 Graph scout has no dispatch policy
 
@@ -299,7 +320,7 @@ Exit:
 Deliver:
 - Passive receipt input contract and validation with sanitized fixtures.
 - Schema/source hashes and meaningful invalidation criteria.
-- Managed-payload tests; registration validation without overwriting global role files.
+- Managed-payload tests; registration validation without overwriting global role files. Reconcile source role templates against registered role TOMLs, including the unrecognized `model_id` key, and validate template keys without changing registered runtime settings.
 - Document the runtime-probe approval boundary and recovery procedure.
 
 Exit:

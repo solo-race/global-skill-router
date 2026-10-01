@@ -30,13 +30,9 @@ relevant bounded assignment. A loop result such as `PLAN_SEALED` or
 
 ## Mandatory session gate
 
-At first activation for a session, before repository discovery, planning, or implementation, run `scripts/router_preflight.py` with Python 3.11 or newer. It reads the active user-level Codex config, installed role profiles, and local model catalog. It does not modify files or make inference requests.
+At first activation for a session, before repository discovery, planning, or implementation, initialize the exact role identities and supervision mode. Registered role TOMLs and the host runtime (Codex/OpenCodex) are authoritative for model/provider routing; this skill does not add a separate route-readiness gate.
 
-Offer `scout-deepseek`, `implementer-deepseek`, or `tester-deepseek` only when that exact profile reports `available: true`. The active Codex provider must route through an installed Codex Router, and the local catalog must advertise the profile's exact route with `multi_agent_version = "v2"`. If preflight is blocked or cannot run, mark DeepSeek identities unavailable and offer only registered native roles. Do not send the upstream ID `deepseek-flash` directly to Codex, add a per-agent `model_provider = "deepseek"`, or silently substitute another model.
-
-The DeepSeek custom agent's Codex-facing model slug is `deepseek/deepseek-v4.1-flash`; Codex Router maps it to the upstream provider model ID `deepseek-flash`. A v2 catalog entry is still only static readiness. On the first delegated task that uses this route in a session, make that assignment read-only, require a unique marker in its result, and verify the actual route from Router request metadata before allowing writes or test execution through DeepSeek. Set `deepseek_runtime_verified=true` only after both the marker and route are confirmed. If the child fails or its route cannot be verified, mark all DeepSeek identities unavailable for the rest of the session and stop the assignment. The optional `--check-local-router` flag only GETs the local `/models` catalog and never proves a child spawn.
-
-If role identities have not been selected, ask the session operator to choose one available globally registered identity for each role. Use `scout`, `implementer`, or `tester` as the native options; add the matching `*-deepseek` option only when preflight marks it available. Use the host's structured choice controls when available. Otherwise, show the currently available IDs and request the three exact choices in one reply. Store the choices as `scout_identity`, `implementer_identity`, and `tester_identity`; keep them stable for the session unless the user changes them. Do not begin task work until all three are set.
+If role identities have not been selected, ask the session operator to choose one host-registered identity for each role. Use `scout`, `implementer`, or `tester` as the native options and include the matching `*-deepseek` identities when they are registered in the host. Use the host's structured choice controls when available. Otherwise, show the currently registered IDs and request the three exact choices in one reply. Store the choices as `scout_identity`, `implementer_identity`, and `tester_identity`; keep them stable for the session unless the operator changes them. An unset `*_identity` is a contract error, never a cue to fall back to a default identity. If native dispatch later reports that an identity or its configured route is unavailable, stop only that assignment, report the host error, and require an explicit identity change; never silently substitute another model.
 
 After role selection, if supervision has not already been explicitly declared for this session, ask exactly one separate user decision:
 
@@ -48,7 +44,7 @@ Set `human_supervisor=true` for Yes and `false` for No. Do not infer supervision
 
 The declarations in `agents/registry.example.toml` are deployment examples. The deployment must make the corresponding role TOMLs available as globally registered native agents before this skill can dispatch them.
 
-For every role assignment, the main supervisor must call the host's native subagent interface using the exact global identity selected for that role. Use `scout_identity`, `implementer_identity`, or `tester_identity` for those roles; use the existing global `planner` and `reviewer` identities for planning and review. Do not perform delegated work inline or silently substitute a different identity or model. If an identity is not registered or its model route is unavailable, stop that assignment and report the missing deployment configuration.
+For every role assignment, the main supervisor must call the host's native subagent interface using the exact global identity selected for that role. Use `scout_identity`, `implementer_identity`, or `tester_identity` for those roles; use the existing global `planner` and `reviewer` identities for planning and review, and the existing global `codebase-memory-scout` identity for a graph pass. Do not perform delegated work inline or silently substitute a different identity or model. If an identity is not registered or its model route is unavailable, stop that assignment and report the missing deployment configuration.
 
 ## Route selection
 
@@ -64,6 +60,16 @@ Otherwise enter the **implementation loop**.
 
 After planning is sealed, return to route selection; normally the new current-phase plan then enters implementation.
 
+## Discovery selection
+
+Repository discovery starts with the session-selected `scout_identity` (ordinary scouting) and stays there by default. Add the registered `codebase-memory-scout` graph pass only when the relevant files and symbols are not yet known, cross-file call/dependency relationships or architectural entrypoints materially guide the task, and a graph project with adequate coverage exists. Use ordinary scouting directly when the task supplies exact files or a narrow known defect, when it is configuration or document verification, when coverage is unavailable or insufficient, or when the graph pass would duplicate adequate evidence.
+
+Run at most one of the two over the same ground: ordinary scouting and the graph pass must not duplicate broad repository discovery in one task. The graph pass is bounded (normally 3-4 graph queries, with metadata checks counted separately) and returns the packet described in [Graph evidence packet](references/graph-evidence-packet.md). Verify the relevant current source before implementation or a consequential impact conclusion.
+
+Graph evidence is provisional: absence, exhaustive impact, dead code, and readiness are never established from it alone. If the graph project is ambiguous, coverage is stale or partial, the files are unsupported, or the tools are unavailable, report the gap explicitly and continue with source inspection through the selected authorized role; switching role or model follows the existing selection policy and never silently incurs different quota; never rebuild the index and never launch an extra agent merely to make a graph precheck pass.
+
+Dispatch `codebase-memory-scout` through the same native host interface as the other registered identities. If native dispatch or its required graph tools are unavailable, report the gap and continue with source inspection through the selected `scout_identity` when feasible; never silently substitute a different model.
+
 ## Supervision policy
 
 `human_supervisor=true` -> supervised execution. Run the implementation loop without automatic independent review. The human remains the live escalation/review authority.
@@ -76,6 +82,7 @@ The same review module may gate a newly created plan in unattended planning. In 
 
 - **Main supervisor**: owns routing, session mode, delegation, evidence comparison, persisted state, and retry/review transitions.
 - **Scout**: read-only repository/document inspection; returns source-backed facts and separates inference.
+- **Graph scout** (`codebase-memory-scout`): read-only, provisional structural discovery through the Codebase Memory graph; selected before or instead of ordinary scouting when the relevant files and symbols are not yet known and cross-file relationships guide the task; returns the bounded packet in [Graph evidence packet](references/graph-evidence-packet.md) and is verified against current source.
 - **Planner**: reasons over a prepared planning packet and produces or revises the project/phase plan; it does not perform broad repository discovery itself.
 - **Implementer**: changes only the bounded implementation brief.
 - **Test executor**: runs requested validation and reports reproducible evidence without repairing failures.
@@ -111,3 +118,4 @@ Planning ends as `PLAN_SEALED`, `NEED_EVIDENCE`, `REVISE_PLAN`, or `BLOCKED`.
 - [Planning packet](references/planning-packet.md)
 - [Phase plan](references/phase-plan.md)
 - [Review package](references/review-package.md)
+- [Graph evidence packet](references/graph-evidence-packet.md)

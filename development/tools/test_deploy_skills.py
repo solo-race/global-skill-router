@@ -229,6 +229,53 @@ def test_real_payload_has_only_router_discovery_entrypoint(tmp_path):
         assert deployed.read_bytes() == profile.read_bytes()
 
 
+def test_module_payload_excludes_generated_artifacts(tmp_path):
+    manifest, module_names = _fixture_repo(tmp_path, module_count=1)
+    module = manifest.parent / module_names[0]
+    cache = module / "scripts" / "__pycache__"
+    cache.mkdir(parents=True)
+    (cache / "helper.cpython-314.pyc").write_bytes(b"stale bytecode")
+    (module / "scripts" / "helper.pyc").write_bytes(b"stale bytecode")
+
+    payload = _build(manifest, tmp_path)
+
+    deployed = payload["payload_root"] / "library" / module_names[0]
+    assert (deployed / "MODULE.md").is_file()
+    assert not list(deployed.rglob("__pycache__"))
+    assert not list(deployed.rglob("*.pyc"))
+    recorded = payload["state"]["payload_files"]
+    assert not [path for path in recorded if path.endswith((".pyc", ".pyo")) or "__pycache__" in path]
+
+
+def test_real_payload_contains_no_generated_artifacts(tmp_path):
+    payload = _build(deploy_skills.DEFAULT_MANIFEST, tmp_path)
+    router = payload["payload_root"]
+
+    assert not list(router.rglob("__pycache__"))
+    assert not list(router.rglob("*.pyc"))
+
+
+def test_real_payload_excludes_legacy_delegation_preflight(tmp_path):
+    payload = _build(deploy_skills.DEFAULT_MANIFEST, tmp_path)
+    module = payload["payload_root"] / "library" / "development-delegation"
+
+    retired = (
+        "scripts/router_preflight.py",
+        "scripts/bootstrap.ps1",
+        "scripts/bootstrap.sh",
+        "scripts/test_router_preflight.py",
+        "scripts/test_bootstrap_windows.py",
+        "scripts/test_bootstrap_posix.py",
+        "references/preflight-report.md",
+        "references/runtime-receipt.md",
+    )
+    assert all(not (module / relative).exists() for relative in retired)
+    module_text = (module / "MODULE.md").read_text(encoding="utf-8")
+    assert "router_preflight.py" not in module_text
+    assert "preflight-report.md" not in module_text
+    assert "runtime-receipt.md" not in module_text
+
+
 @pytest.mark.parametrize("relative", ["references/nested/SKILL.md", "references/nested/agents/openai.yaml"])
 def test_build_rejects_nested_module_discovery_files(tmp_path, relative):
     manifest, _ = _fixture_repo(tmp_path)

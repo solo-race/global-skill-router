@@ -16,6 +16,15 @@ Planning must leave the current phase executable. A phase name or roadmap bullet
 
 The main supervisor calls the host's native subagent interface using the session-selected global `scout_identity` (`scout` or `scout-deepseek`) for project-document and repository discovery. Build `references/planning-packet.md` from source-backed facts rather than a free-form summary. Include relevant documents, current architecture/contracts, existing plan state, tests, dependencies, constraints, and unresolved questions.
 
+Choose the discovery scope explicitly:
+
+- **Ordinary scouting is the default** when the task supplies exact files or a narrow known defect, when the question is configuration or document verification, when graph coverage is unavailable or insufficient, or when a graph pass would duplicate evidence already held.
+- **Add the registered `codebase-memory-scout` graph pass** when the relevant files and symbols are not yet known, when cross-file call/dependency relationships or architectural entrypoints materially guide the task, and a graph project with adequate coverage is available.
+
+Do not run both over the same ground: ordinary scouting and the graph pass must not duplicate broad repository discovery in one task. The graph pass is bounded (normally 3-4 graph queries, with metadata checks counted separately) and returns a packet in the shape of `references/graph-evidence-packet.md`.
+
+Graph evidence is provisional. Verify the relevant current source before accepting a consequential impact conclusion, and never claim absence, exhaustive impact, dead code, or readiness from graph evidence alone. If the graph project is ambiguous, coverage is stale or partial, the files are unsupported, or the tools are unavailable, report the gap and continue with source inspection through the selected authorized role; switching role or model follows the existing selection policy and never silently incurs different quota. Never rebuild the index and never launch an extra agent merely to make a graph precheck pass.
+
 Do not make the high-reasoning planner rediscover the repository unless a narrow follow-up inspection is essential.
 
 ## 3. Planner reasoning loop

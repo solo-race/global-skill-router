@@ -433,16 +433,30 @@ def _active_adapters(data: dict, owner: str, scenario: str) -> list[dict]:
     return sorted(adapters, key=lambda entry: str(entry.get("name", "")))
 
 
+GENERATED_ARTIFACT_NAMES = ("__pycache__",)
+GENERATED_ARTIFACT_SUFFIXES = (".pyc", ".pyo")
+
+
+def _generated_artifacts(names: list[str]) -> list[str]:
+    """Interpreter-generated artifacts that must never reach a payload."""
+    return [
+        name
+        for name in names
+        if name in GENERATED_ARTIFACT_NAMES or name.endswith(GENERATED_ARTIFACT_SUFFIXES)
+    ]
+
+
 def _copy_module_source(source: Path, destination: Path, planned_files: set[str]) -> None:
-    """Copy a private module without discovery metadata or planned adapters."""
+    """Copy a private module without discovery metadata, planned adapters, or generated artifacts."""
 
     def ignore(directory: str, names: list[str]) -> list[str]:
         relative = Path(directory).resolve().relative_to(source.resolve()).as_posix()
+        excluded = set(_generated_artifacts(names))
         if relative == "adapters":
-            return sorted(planned_files.intersection(names))
-        if relative == "agents":
-            return [name for name in names if name == "openai.yaml"]
-        return []
+            excluded.update(planned_files.intersection(names))
+        elif relative == "agents":
+            excluded.update(name for name in names if name == "openai.yaml")
+        return sorted(excluded)
 
     shutil.copytree(source, destination, ignore=ignore)
     (destination / "SKILL.md").rename(destination / "MODULE.md")
