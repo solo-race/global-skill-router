@@ -675,7 +675,19 @@ def test_v4_route_rejects_canonical_adapter_for_wrong_scenario(tmp_path):
 
 
 def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_path):
-    payload = _build(deploy_skills.DEFAULT_MANIFEST, tmp_path / "staging")
+    # Managed modules must deploy without optional source checkouts.
+    candidate_root = tmp_path / "candidate"
+    candidate_skills = candidate_root / "development" / "skill"
+    shutil.copytree(deploy_skills.DEFAULT_MANIFEST.parent, candidate_skills)
+    manifest_path = candidate_skills / "manifest.yaml"
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+    photoshop_source = next(
+        item for item in manifest["sources"]
+        if item["id"] == "photoshop-mcp-windows-first-reference"
+    )
+    assert photoshop_source["required"] is False
+    assert not (candidate_root / photoshop_source["path"]).exists()
+    payload = _build(manifest_path, tmp_path / "staging")
     runtime_ops = payload["payload_root"] / "library" / "runtime-ops"
     index = yaml.safe_load(
         (payload["payload_root"] / "_platform" / "routes" / "index.yaml").read_text(
@@ -690,8 +702,20 @@ def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_pa
             "routing_outcome": "continue",
             "selector": "Repository planning/re-planning, no usable detailed current-phase plan, or delegated implementation under an existing plan or acceptance contract.",
             "skill_path": "library/development-delegation/MODULE.md",
-        }
+        },
+        {
+            "name": "photoshop-ops",
+            "routing_priority": 80,
+            "routing_outcome": "terminal",
+            "selector": "Operate selected local Adobe Photoshop documents through registered MCP; excludes imagegen, repository implementation, and MCP security review.",
+            "skill_path": "library/photoshop-ops/MODULE.md",
+        },
     ]
+    photoshop = payload["payload_root"] / "library" / "photoshop-ops"
+    assert (photoshop / "MODULE.md").read_bytes() == (candidate_skills / "photoshop-ops" / "SKILL.md").read_bytes()
+    for relative in ("references/operation-contract.md", "references/provenance.md"):
+        assert (photoshop / relative).read_bytes() == (candidate_skills / "photoshop-ops" / relative).read_bytes()
+    assert not any("skill-repos" in path.parts for path in payload["payload_root"].rglob("*"))
     assert not (runtime_ops / "adapters" / "gpt-repo-local.md").exists()
     assert (runtime_ops / "adapters" / "vba-office.md").is_file()
     assert (runtime_ops / "adapters" / "android-gradle.md").is_file()
@@ -709,6 +733,7 @@ def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_pa
             assert item["skill_path"] == f"library/{item['name']}/MODULE.md"
             assert (payload["payload_root"] / item["skill_path"]).is_file()
         assert "development-delegation" not in names
+        assert "photoshop-ops" not in names
         if scenario == "wsl-python":
             assert "runtime-ops" not in names
             assert names == ["research-investigation"]

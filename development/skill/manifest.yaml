@@ -45,6 +45,15 @@ sources:
     version: "2026-09-21"
     description: Local source repository for Kotlin official Agent Skill design.
 
+  - id: photoshop-mcp-windows-first-reference
+    path: development/skill-repos/photoshop-mcp-windows-first-pnpm-migration
+    kind: development-repository
+    required: false
+    origin: https://github.com/solo-race/photoshop-mcp-windows-first-pnpm-migration
+    pinned_ref: 4039f71d23383d6615c1b2235615e5626302fad2
+    version: "4039f71d23383d6615c1b2235615e5626302fad2"
+    description: Optional reviewed upstream source for the self-contained Photoshop operating skill.
+
 skills:
   - name: research-investigation
     path: development/skill/research-investigation
@@ -99,13 +108,27 @@ skills:
     entrypoint: true
     version: "0.1.0"
     description: Plan or re-plan repository work, or execute an existing implementation contract through bounded delegation and evidence gates.
+  - name: photoshop-ops
+    path: development/skill/photoshop-ops
+    status: active
+    deployment_role: module
+    routing_scope: global
+    routing_priority: 80
+    routing_outcome: terminal
+    routing_selector: Operate selected local Adobe Photoshop documents through registered MCP; excludes imagegen, repository implementation, and MCP security review.
+    scenarios: []
+    deps: []
+    composed_of: []
+    entrypoint: true
+    version: "0.1.0"
+    description: Authorized local Photoshop document operations through registered MCP under project art and output rules.
   - name: global-skill-router
     path: development/skill/global-skill-router
     status: active
     deployment_role: router
     scenarios: [win-access-vba, win-android, wsl-python]
     deps: []
-    composed_of: [development-delegation, research-investigation, runtime-ops, kotlin-tooling]
+    composed_of: [development-delegation, research-investigation, runtime-ops, kotlin-tooling, photoshop-ops]
     entrypoint: true
     version: "0.1.0"
     description: Thin router for selective loading of managed skill modules.

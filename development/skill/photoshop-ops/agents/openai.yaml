@@ -1,0 +1,4 @@
+interface:
+  display_name: "Photoshop Operations"
+  short_description: "Authorized local Photoshop document operations"
+  default_prompt: "Use $photoshop-ops to operate the selected local Adobe Photoshop documents under the project_id handoff, registered MCP policy, and authorized output rules; return actual changes and unverified items in conversation."

@@ -205,10 +205,11 @@ def test_runtime_adapter_contract_reuse_is_scoped_and_invalidated():
 def test_real_manifest_v4_is_green_and_routes_are_explicit():
     report = validate_skills.validate(validate_skills.DEFAULT_MANIFEST)
     assert report["ok"] is True, report["errors"]
-    assert report["sources_checked"] == 6
+    assert report["sources_checked"] == 7
     assert report["adapters_checked"] == 4
     assert report["routes"]["global"]["skills"] == [
         {"name": "development-delegation", "status": "active", "routing_priority": 100, "routing_outcome": "continue"},
+        {"name": "photoshop-ops", "status": "active", "routing_priority": 80, "routing_outcome": "terminal"},
     ]
     assert report["routes"]["win-access-vba"]["skills"] == [
         {"name": "global-skill-router", "status": "active"},
@@ -233,6 +234,40 @@ def test_real_manifest_v4_is_green_and_routes_are_explicit():
     assert report["routes"]["wsl-python"]["adapters"] == [
         {"name": "wsl-python", "owner_skill": "runtime-ops", "status": "planned"},
     ]
+
+    manifest = yaml.safe_load(validate_skills.DEFAULT_MANIFEST.read_text(encoding="utf-8"))
+    source = next(
+        item for item in manifest["sources"]
+        if item["id"] == "photoshop-mcp-windows-first-reference"
+    )
+    assert source == {
+        "id": "photoshop-mcp-windows-first-reference",
+        "path": "development/skill-repos/photoshop-mcp-windows-first-pnpm-migration",
+        "kind": "development-repository",
+        "required": False,
+        "origin": "https://github.com/solo-race/photoshop-mcp-windows-first-pnpm-migration",
+        "pinned_ref": "4039f71d23383d6615c1b2235615e5626302fad2",
+        "version": "4039f71d23383d6615c1b2235615e5626302fad2",
+        "description": "Optional reviewed upstream source for the self-contained Photoshop operating skill.",
+    }
+    photoshop = next(item for item in manifest["skills"] if item["name"] == "photoshop-ops")
+    assert photoshop["path"] == "development/skill/photoshop-ops"
+    assert photoshop["status"] == "active"
+    assert photoshop["deployment_role"] == "module"
+    assert photoshop["routing_scope"] == "global"
+    assert photoshop["routing_priority"] == 80
+    assert photoshop["routing_outcome"] == "terminal"
+    assert photoshop["scenarios"] == photoshop["deps"] == photoshop["composed_of"] == []
+    assert photoshop["entrypoint"] is True
+    assert photoshop["version"] == "0.1.0"
+    router = next(item for item in manifest["skills"] if item["name"] == "global-skill-router")
+    assert router["composed_of"].count("photoshop-ops") == 1
+    assert set(router["composed_of"]) == {
+        item["name"] for item in manifest["skills"]
+        if item["status"] == "active" and item["deployment_role"] == "module"
+    }
+    for scenario in SCENARIOS:
+        assert all(item["name"] != "photoshop-ops" for item in report["routes"][scenario]["skills"])
 
     for scenario in ("win-android", "wsl-python"):
         assert all(
