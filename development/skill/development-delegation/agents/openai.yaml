@@ -1,4 +1,4 @@
 interface:
   display_name: "Development Delegation"
-  short_description: "Plan and implement with session-selected agents and review gates."
-  default_prompt: "Use $development-delegation to select registered scout, implementer, and tester identities, set supervision, continue routing, then delegate bounded planning or implementation with validation and applicable review."
+  short_description: "Bounded direct, planned or exploratory work with dynamic roles."
+  default_prompt: "Use $development-delegation to classify the task, preserve authority and chosen identities, continue routing, and assign only needed roles with validation and risk-based review."

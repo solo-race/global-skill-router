@@ -24,3 +24,17 @@ uv run python development/tools/run_tests.py
 1. Windows原生项目，如SQL数据库管理，ACCESS前端管理、ACCESS/EXCEL VBA编写；
 2. Windows系统下的安卓应用开发；
 3. WSL中的原生筛选项目，使用Python脚本。
+
+## 动态开发委派（0.2）
+
+`development-delegation` 仍是全局继续路由模块，不替代后续场景技能。
+总控按任务选择 Direct、Planned 或 Exploratory，按需把角色模块分配给宿主
+Agent；角色职责、专业能力和模型身份分别管理，不要求每次固定启动五个角色。
+
+- Direct 使用简短执行契约；未知问题先只读探索；架构、迁移等工作使用详细计划。
+- 监督模式与审查策略独立；高风险变更仍要求独立审查，策略不授予写入权限。
+- 并发实施要求隔离工作区、明确所有权和依赖图；合并后重新验证集成状态。
+- YAML 仅声明策略，宿主负责实际调度、权限、模型和额度；离线测试不代表真实 Agent 调度已验证。
+- 旧会话行为通过显式 legacy 兼容选项保留；不会改写已注册 Agent 或静默替换模型。
+
+详细实施与验证记录见 [动态委派计划](development/docs/plans/150-dynamic-delegation.md)。

@@ -1,8 +1,10 @@
+# Optional identity binding examples, not a mandatory team or registration prerequisite.
+# Dynamic mode may assign role modules to an authorized capable generic host agent.
 # Copy role TOMLs into the deployment's `agents/` directory, then copy these declarations into its Codex `config.toml`.
 # Relative config_file paths resolve from that config.toml.
 # Registered role TOMLs are authoritative for model/provider routing. Codex/OpenCodex owns runtime route
 # resolution and dispatch; this skill does not maintain a second static readiness model.
-# reviewer.toml intentionally leaves its model/provider settings to the deployment.
+# All template execution settings are examples; actual owner registrations remain authoritative.
 # codebase-memory-scout is the optional graph-scout identity: register it only when a
 # Codebase Memory MCP server is available, and expect its read-only packet shape in
 # references/graph-evidence-packet.md.
@@ -20,15 +22,15 @@ description = "Read-only Codebase Memory scout for provisional structural discov
 config_file = "./agents/codebase-memory-scout.toml"
 
 [agents.planner]
-description = "High-reasoning planner. Converts a prepared evidence packet into a master/current-phase plan or precise evidence requests."
+description = "High-reasoning planner. Converts a prepared evidence packet into a bounded executable plan or precise evidence requests."
 config_file = "./agents/planner.toml"
 
 [agents.implementer]
-description = "Bounded code implementer. Changes only the prepared implementation scope; validation is external."
+description = "Bounded code implementer. Changes only the brief scope; performs explicitly assigned checks or hands off validation."
 config_file = "./agents/implementer.toml"
 
 [agents.implementer-deepseek]
-description = "Bounded code implementer using the configured DeepSeek runtime route. Changes only the prepared implementation scope; validation is external."
+description = "Bounded code implementer using the configured DeepSeek runtime route. Changes only the brief scope; performs explicitly assigned checks or hands off validation."
 config_file = "./agents/implementer-deepseek.toml"
 
 [agents.tester]
@@ -40,5 +42,5 @@ description = "External validation executor using the configured DeepSeek runtim
 config_file = "./agents/tester-deepseek.toml"
 
 [agents.reviewer]
-description = "Independent read-only reviewer for unattended phase close and optional unattended plan review. Model/provider may be selected by deployment or OMP."
+description = "Independent read-only reviewer for policy-selected plan and delivery boundaries, including mandatory high-risk review."
 config_file = "./agents/reviewer.toml"

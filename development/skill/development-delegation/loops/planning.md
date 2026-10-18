@@ -1,62 +1,24 @@
-# Planning Loop
+# Planned Work
 
-Enter when the user explicitly requests planning/replanning or when the current phase lacks a usable detailed phase plan.
+Use for requested planning, complex dependency coordination or high-risk work. Load
+only existing project/phase documents relevant to the requested scope. Missing a
+master plan does not require inventing a whole-project roadmap: create a bounded
+standalone plan unless the user requested project planning. Preserve established
+planning conventions and existing master plans when relevant.
 
-## 1. Determine planning depth
+Gather only missing source evidence under references/discovery.md. Give an assigned
+planner references/planning-packet.md, not a broad rediscovery request. The planner
+returns NEED_EVIDENCE, PLAN_DRAFT or BLOCKED. Evidence/revision/assignment budgets
+apply to every continuation. Materialize the plan through an authorized writer;
+a read-only planner must not gain write permission from this workflow.
 
-Inspect the existing project/roadmap/plan documents before deciding what must be created.
+An executable plan names objective, scope/exclusions, stable unit IDs and dependency
+DAG, ownership/isolation, acceptance and validation per unit, integration checks,
+exit criteria, risks/rollback, assumptions and unresolved authority decisions. Use
+references/phase-plan.md if the repository has no format. Reject cycles or unknown
+dependencies before dispatch. Apply modules/review.md at the plan boundary; required
+review must PASS before PLAN_SEALED. Sealing a plan does not authorize implementation.
 
-- **No project plan exists:** use project documents and current repository evidence to establish a master project plan first: objective, constraints, phase sequence, phase-level outcomes, dependencies, and completion conditions. Then identify the current phase and materialize its detailed plan.
-- **A master plan exists but the current phase is not detailed enough to execute:** preserve the master plan and materialize only the current phase.
-- **A detailed phase plan exists but the user explicitly requests planning:** revise, refine, or replace the requested planning scope; do not silently rewrite unrelated phases.
-
-Planning must leave the current phase executable. A phase name or roadmap bullet is not enough.
-
-## 2. Gather evidence cheaply
-
-The main supervisor calls the host's native subagent interface using the session-selected global `scout_identity` (`scout` or `scout-deepseek`) for project-document and repository discovery. Build `references/planning-packet.md` from source-backed facts rather than a free-form summary. Include relevant documents, current architecture/contracts, existing plan state, tests, dependencies, constraints, and unresolved questions.
-
-Choose the discovery scope explicitly:
-
-- **Ordinary scouting is the default** when the task supplies exact files or a narrow known defect, when the question is configuration or document verification, when graph coverage is unavailable or insufficient, or when a graph pass would duplicate evidence already held.
-- **Add the registered `codebase-memory-scout` graph pass** when the relevant files and symbols are not yet known, when cross-file call/dependency relationships or architectural entrypoints materially guide the task, and a graph project with adequate coverage is available.
-
-Do not run both over the same ground: ordinary scouting and the graph pass must not duplicate broad repository discovery in one task. The graph pass is bounded (normally 3-4 graph queries, with metadata checks counted separately) and returns a packet in the shape of `references/graph-evidence-packet.md`.
-
-Graph evidence is provisional. Verify the relevant current source before accepting a consequential impact conclusion, and never claim absence, exhaustive impact, dead code, or readiness from graph evidence alone. If the graph project is ambiguous, coverage is stale or partial, the files are unsupported, or the tools are unavailable, report the gap and continue with source inspection through the selected authorized role; switching role or model follows the existing selection policy and never silently incurs different quota. Never rebuild the index and never launch an extra agent merely to make a graph precheck pass.
-
-Do not make the high-reasoning planner rediscover the repository unless a narrow follow-up inspection is essential.
-
-## 3. Planner reasoning loop
-
-Send the planning packet through native subagent dispatch to the existing global `planner` identity. The planner returns one of:
-
-- `NEED_EVIDENCE` with precise missing questions;
-- `PLAN_DRAFT` containing the project-plan changes, current-phase plan, assumptions, and unresolved decisions;
-- `BLOCKED` when the plan requires an authority decision that evidence cannot resolve.
-
-For `NEED_EVIDENCE`, delegate only the requested questions to the selected global `scout_identity`, append the new evidence to the packet, and invoke the same global `planner` identity again.
-
-## 4. Materialize the plan
-
-A detailed current-phase plan must define:
-
-- phase objective and relation to the master plan;
-- bounded implementation units;
-- dependency/order graph;
-- allowed scope and material exclusions;
-- acceptance criteria for each unit;
-- validation/checks for each unit;
-- phase exit criteria;
-- migration, compatibility, rollback, permission, data-loss, or other material risks when relevant;
-- assumptions and explicit decisions still owned by a human/upstream authority.
-
-Persist the plan using the repository's existing planning convention when one exists. Otherwise use the structure in `references/phase-plan.md` and avoid inventing a parallel planning system.
-
-## 5. Seal or review
-
-If `human_supervisor=true`, surface the materialized plan and mark it `PLAN_SEALED` unless the human requests review or revision.
-
-If `human_supervisor=false`, build a planning review package and invoke the independent review module. `PASS` seals the plan; `REVISE` returns findings to the planner with only the relevant evidence; `BLOCK` stops unattended execution.
-
-After `PLAN_SEALED`, return to the skill route selector. If the current phase is now executable, enter the implementation loop.
+When execution is authorized, use loops/implementation.md. A plan-only request ends
+with the sealed plan; do not automatically implement it. Legacy compatibility alone
+retains its whole-project planning prerequisite and supervision-derived review gates.

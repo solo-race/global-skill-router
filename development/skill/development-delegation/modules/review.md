@@ -1,50 +1,29 @@
-# Independent Review Module
+# Independent Review
 
-This module is mandatory at unattended phase-close boundaries and may also gate unattended planning. It is not part of the implementer role.
+Review policy is independent of interactive/unattended supervision. Evaluate risk at
+classification, plan sealing, scope change and delivery/integration boundaries.
 
-## Independence
+- on_demand: review when requested, plus mandatory high-risk override.
+- risk_based: review material risk, uncertain evidence or mandatory triggers.
+- always: review every plan and delivery boundary.
+- All policies: security/permissions, destructive/irreversible changes, migrations/data
+  loss, external/production effects and consequential compatibility/API changes require
+  independent review. Unknown material risk is unresolved, never assumed low-risk.
 
-The reviewer receives a fresh, bounded package. Do not pass the implementer's private reasoning history or ask the reviewer to continue implementation. Provide only the active contract/plan, changed files or diff, validation evidence, repository state, prior review findings when applicable, and material risks.
+High-risk plans require review before execution; delivered changes require review of
+the actual integrated state before acceptance. Review is additional to required user
+approval and cannot grant permission. Interactive cannot waive a mandatory review;
+unattended cannot waive an approval. Legacy compatibility adds its historical gates.
 
-The reviewer is read-only and must not edit code, repair failures, or redesign the project unless the review question is explicitly a plan review.
+Use a separate read-only reviewer context with references/review-package.md: contract,
+diff/plan, source-backed validation, repository fingerprint, prior findings and risks.
+Do not pass implementer private reasoning or ask the reviewer to repair. Review checks
+scope, criteria, reproducibility, skipped checks, dirty/generated state, dependencies,
+rollback and consequential risks. A plan review checks executable units and assumptions;
+no whole-project master plan is required for a bounded dynamic plan.
 
-## Review targets
-
-### Implementation review
-
-Check:
-- every phase/unit criterion has direct evidence;
-- changes remain inside approved scope;
-- validation is sufficient and reproducible;
-- failures, skipped checks, generated artifacts, and dirty state are accounted for;
-- later-phase assumptions are not invalidated;
-- no uncovered migration, compatibility, permission, irreversible, or data-loss issue was introduced.
-
-### Planning review
-
-Check:
-- the plan is grounded in cited project/repository evidence;
-- the current phase is executable rather than merely descriptive;
-- units have clear boundaries, dependencies, acceptance criteria, and validation;
-- the plan is consistent with the master plan and existing architecture/contracts;
-- material risks and authority decisions are explicit.
-
-## Return contract
-
-Return exactly one disposition:
-
-- `PASS` — no material finding blocks acceptance/sealing.
-- `REVISE` — one or more actionable findings can be corrected within the active plan/contract.
-- `BLOCK` — approval requires a new architecture/plan/authority decision or evidence that the loop cannot obtain mechanically.
-
-For `REVISE` or `BLOCK`, report findings as:
-
-```text
-finding_id:
-severity: material | blocking
-criterion_or_source:
-evidence:
-required_change:
-```
-
-Do not approve based on plausibility. Do not require stylistic changes that are outside acceptance criteria unless they reveal a concrete correctness, maintainability, safety, or scope defect.
+Return PASS, REVISE or BLOCK. Every REVISE/BLOCK finding includes finding_id, severity,
+criterion_or_source, evidence and required_change. PASS requires sufficient current
+evidence, not plausibility. REVISE -> bounded authorized repair and fresh validation,
+then review within counters. BLOCK or exhausted budget stops affected work. If required
+review is unavailable, report BLOCKED; never silently approve or replace the reviewer.

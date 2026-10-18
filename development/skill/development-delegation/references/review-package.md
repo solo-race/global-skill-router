@@ -1,12 +1,15 @@
 # Review Package
 
-Use for unattended phase-close review and unattended plan review. Keep the package bounded and independent of worker reasoning history.
+Use at policy-selected plan/delivery boundaries under either supervision mode. High-risk review is mandatory. Keep the package bounded and independent of worker reasoning history.
 
 ```text
 REVIEW_PACKAGE
 
 review_type: IMPLEMENTATION | PLAN
-subject: <phase/plan identifier>
+subject: <direct unit, integration boundary or scoped phase/plan identifier>
+supervision: interactive | unattended
+review_policy: on_demand | risk_based | always
+review_trigger: <request, policy or mandatory risk trigger>
 status: READY_FOR_REVIEW
 
 contract_or_plan:
@@ -24,7 +27,9 @@ scope_integrity:
 
 repo_state:
 - head: <commit/ref>
-- working_tree: <clean/dirty/unknown>
+- working_tree: <clean/dirty/unknown; fingerprint of tested integrated tree>
+- environment: <validation environment and relevant config fingerprint>
+- freshness: <whether all evidence matches current scope and state>
 
 prior_findings:
 - <none or finding id -> disposition/evidence>
@@ -36,7 +41,8 @@ review_questions:
 - are all criteria directly evidenced?
 - is scope preserved?
 - is validation/evidence sufficient?
-- are plan dependencies and later-phase assumptions still valid?
+- are dependencies and relevant later-phase assumptions still valid?
+- do integration checks validate the combined state rather than isolated units only?
 - are material risks or authority decisions exposed?
 
 return:

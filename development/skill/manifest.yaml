@@ -101,13 +101,13 @@ skills:
     routing_scope: global
     routing_priority: 100
     routing_outcome: continue
-    routing_selector: Repository planning/re-planning, no usable detailed current-phase plan, or delegated implementation under an existing plan or acceptance contract.
+    routing_selector: Repository work needing bounded direct execution, planning/re-planning, exploratory investigation, or dependency-aware delegated implementation.
     scenarios: []
     deps: []
     composed_of: []
     entrypoint: true
-    version: "0.1.0"
-    description: Plan or re-plan repository work, or execute an existing implementation contract through bounded delegation and evidence gates.
+    version: "0.2.0"
+    description: Select risk-based execution paths and assign role modules on demand while preserving authority, independent review, and evidence gates.
   - name: photoshop-ops
     path: development/skill/photoshop-ops
     status: active

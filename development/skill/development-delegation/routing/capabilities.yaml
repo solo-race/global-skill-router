@@ -1,0 +1,71 @@
+# Requirements to compare with actual host grants, never new permission grants.
+schema_version: 1
+kind: declarative-role-capabilities
+identity_selection:
+  preserve_explicit_choices: true
+  generic_host_agent_allowed_when_authorized: true
+  silent_model_or_quota_substitution: false
+  owner_runtime_settings_authoritative: true
+roles:
+  scout:
+    module: roles/scout.md
+    required: [read_source]
+    mutation: forbidden
+  planner:
+    module: roles/planner.md
+    required: [read_evidence]
+    mutation: forbidden
+  implementer:
+    module: roles/implementer.md
+    required: [read_source, write_owned_scope]
+    optional: [run_bounded_checks]
+    mutation: bounded_authority_only
+  tester:
+    module: roles/tester.md
+    required: [read_source, run_bounded_checks]
+    mutation: authorized_test_artifacts_only
+  reviewer:
+    module: roles/reviewer.md
+    required: [read_source, read_evidence]
+    mutation: forbidden
+    independent_context_required: true
+  specialist:
+    module: roles/specialist.md
+    required: [read_evidence]
+    mutation: explicit_bounded_authority_only
+specialties:
+  architect:
+    module: roles/specialist.md
+    select_when: unresolved_architecture_or_cross_boundary_contract
+    evidence: [current_contracts, alternatives, tradeoffs, authority_decisions]
+    limits: read_only_no_unapproved_design_decisions
+  debugger:
+    module: roles/specialist.md
+    select_when: bounded_failure_requires_causal_investigation
+    evidence: [reproduction, failing_state, hypotheses, discriminating_checks]
+    limits: read_only_unless_bounded_experiment_authorized
+  integrator:
+    module: modules/integration.md
+    select_when: multiple_isolated_outputs_require_combination
+    evidence: [base_revisions, ownership, diffs, combined_tree_validation]
+    limits: authorized_integration_scope_only
+  security_auditor:
+    module: roles/specialist.md
+    select_when: security_or_permission_boundary_changes
+    evidence: [threat_surface, permission_delta, findings, verification]
+    limits: read_only_no_exploitation_or_permission_changes
+  performance:
+    module: roles/specialist.md
+    select_when: performance_claim_or_regression_requires_measurement
+    evidence: [baseline, workload, environment, measurements, uncertainty]
+    limits: benchmarks_require_authorized_resource_and_side_effect_bounds
+  migration:
+    module: roles/specialist.md
+    select_when: schema_data_or_compatibility_transition
+    evidence: [compatibility_matrix, backup, rollback, dry_run_checks]
+    limits: read_only_no_live_migration_without_explicit_authority
+  documentation:
+    module: roles/specialist.md
+    select_when: documentation_contract_or_usage_changes_need_domain_review
+    evidence: [source_contracts, audience, changed_examples, link_checks]
+    limits: writes_only_in_explicitly_owned_documentation_scope

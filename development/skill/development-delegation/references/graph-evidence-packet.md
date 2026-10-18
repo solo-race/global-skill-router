@@ -7,7 +7,7 @@ and it never substitutes for reading the current source.
 
 ## Selecting a graph pass
 
-`SKILL.md` "Discovery selection" is the single selection authority; this packet
+`references/discovery.md` is the single discovery selection authority; this packet
 does not restate the criteria. A graph packet is reused rather than re-derived,
 and one discovery question is not run through both an ordinary scout and a graph
 scout by default.
@@ -74,6 +74,9 @@ answered; do not expand into whole-repository enumeration.
   selection and approval policy; never silently incur different quota.
 - Never rebuild the index or launch extra agents merely to make a graph check
   pass.
+
+Load this packet only for a selected graph assignment; use references/discovery.md
+for dynamic selection and explicit identity/authority preservation.
 
 The read-only sandbox and the tool allowlist bound this role. An allowlist is not
 proof of the complete effective tool surface.

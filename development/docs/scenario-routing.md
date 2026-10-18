@@ -8,7 +8,7 @@ this page must not be edited as a second route registry.
 
 | Scope | Intent / control plane | Current route | State |
 |---|---|---|---|
-| `global` | Explicit planning/re-planning, missing current-phase plan, or delegated implementation under an existing contract | `development-delegation` | active; priority 100; continue |
+| `global` | Bounded direct execution, planning/re-planning, exploratory investigation, or dependency-aware delegated implementation | `development-delegation` | active; priority 100; continue |
 | `global` | Selected local Adobe Photoshop document operations through registered MCP; excludes imagegen, repository implementation, and MCP security review | `photoshop-ops` | active; priority 80; terminal; native operations UNVERIFIED |
 | `win-access-vba` | Host/tool inspection, mutation, and testing | `runtime-ops` + `vba-office` | active |
 | `win-access-vba` | SQL Server runtime operations | `runtime-ops` + `sql-server` | planned; no adapter capability yet |
@@ -23,7 +23,7 @@ this page must not be edited as a second route registry.
   higher `routing_priority` is selected first; equal-priority ambiguity is reported.
   A match initializes its module once. `routing_outcome: continue` resumes discovery;
   `terminal` stops it when the module fully owns execution. Priority does not imply stop.
-- `development-delegation` is orchestration middleware. After its session gate it
+- `development-delegation` is orchestration middleware. After recording task policy it
   returns `ROUTE_CONTINUE`, leaving specialized scenario discovery active. On
   `win-android`, `kotlin-tooling` is priority 10 and continues to the next
   applicable route; `runtime-ops` is priority 0 and terminal. Other current

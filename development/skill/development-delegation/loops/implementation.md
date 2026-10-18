@@ -1,33 +1,46 @@
-# Implementation Loop
+# Implementation and Dependency DAG
 
-Use only when the current phase already has a usable detailed phase plan.
+Execute a bounded Direct brief or usable Planned units. Scout only missing evidence,
+assign the smallest adequate role set, implement within scope, then validate exact
+acceptance criteria. Do not require a master plan for Direct work. Use current source
+and references/supervisor.md for budgets, bindings and transitions.
 
-## Unit execution
+## Ready selection and isolation
 
-1. Load the active phase plan and persisted status.
-2. Select one ready implementation unit whose dependencies are satisfied.
-3. Delegate only the repository/document/code questions needed for that unit to the host's native subagent interface using the session-selected global `scout_identity`; parallelize independent scout work. Ordinary scouting is the default; add a bounded `codebase-memory-scout` graph pass only when the unit's files and symbols are not yet known and cross-file relationships materially guide the change, and never let the two cover the same ground (`loops/planning.md` section 2 holds the selection conditions and the fallback rules). Verify the relevant current source before building the brief or drawing a consequential impact conclusion.
-4. Build a bounded implementation brief from direct evidence.
-5. Delegate the code change through native subagent dispatch to the session-selected global `implementer_identity` (`implementer` or `implementer-deepseek`).
-6. Delegate build/test/runtime/manual validation through native subagent dispatch to the session-selected global `tester_identity` (`tester` or `tester-deepseek`).
-7. On failure, return decisive evidence to the same selected `implementer_identity`. Re-scout with `scout_identity` only when evidence is stale or incomplete.
-8. Accept the unit only when every criterion has direct validation evidence. Persist status before selecting another unit.
-9. If work reveals a missing architecture decision, invalid phase assumption, or required scope expansion, return `ESCALATE_PLAN` and route to the planning loop.
+Represent units by stable IDs, dependencies, acceptance, owner, allowed paths/resources,
+base revision, output location and validation. Reject missing dependencies, duplicate
+IDs and cycles before execution; report the cycle and request/revise the plan under
+existing authority. Never break dependencies just to create parallelism.
 
-## Phase close
+A unit is ready only when prerequisites are ACCEPTED on the integration baseline and
+its authority, budget and evidence are current. Choose ready IDs in stable lexical
+order; dispatch at most the remaining concurrency/assignment limits. Read-only jobs
+may share a tree if it stays stable for their evidence snapshot.
 
-When all units are mechanically accepted, verify phase exit criteria and build a review package.
+Concurrent mutable units require separate worktrees or equivalent isolated snapshots,
+explicit disjoint path/resource ownership, and no hidden shared writes (generated
+files, build outputs, database state, caches or external services). Disjoint filenames
+alone are insufficient. If isolation or ownership cannot be established, serialize.
+Creating worktrees/environments must itself be authorized. Shared contracts or overlapping
+resources are ordered through dependencies or an explicitly owned integration unit.
 
-If `human_supervisor=true`, do not automatically spawn an independent reviewer. Mark the phase `PHASE_ACCEPTED` when its mechanical exit criteria are evidenced, report completion to the human supervisor, then advance according to the project plan.
+## Integration and acceptance
 
-If `human_supervisor=false`, mark the phase `READY_FOR_REVIEW` and invoke `modules/review.md`:
+Load `modules/integration.md` for the combined-tree acceptance procedure. The
+supervisor records each output's base and changed paths; authorized integration uses
+stable dependency order and preserves unrelated dirty work. Only current integrated
+unit criteria plus any required unit review permit unit ACCEPTED. Dependants may then
+run. Phase-wide exit criteria and required boundary review are checked only at phase
+close before PHASE_ACCEPTED; they do not block acceptance of prerequisite units.
+Isolated unit test passes never prove combined correctness.
 
-- `PASS` -> persist `PHASE_ACCEPTED`, then advance.
-- `REVISE` -> translate each actionable finding into bounded repair work, implement and revalidate it, rebuild the review package, then review again.
-- `BLOCK` -> stop with the blocking decision/evidence.
+## Failure and recovery
 
-Repeat unattended review until `PASS`, `BLOCK`, or a deployment-defined review budget is exhausted. Never convert reviewer uncertainty into approval.
-
-## Retry discipline
-
-Reuse the implementation brief across retries unless the contract or evidence changed. Keep reviewer findings distinct from implementer rationale. Do not solve validation failures in the test-executor role. Do not broaden a unit merely to make tests pass.
+Failed prerequisites block their dependants; independent branches may continue only
+within existing authority/budgets. Do not integrate failed or partial outputs as accepted.
+Repair uses a bounded brief, existing binding and remaining retry budget. Testers report
+failures rather than repairing them. Stale evidence -> refresh/reverify affected checks;
+changed scope/architecture -> ESCALATE_PLAN and pause affected writes. Failed integration
+invalidates affected acceptance and downstream evidence, even if isolated checks passed.
+Review REVISE consumes revision budget, then repair, revalidate and review again. BLOCK,
+missing authority, unsafe rollback or exhausted budget -> stop affected work and report.

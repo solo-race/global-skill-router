@@ -6,8 +6,14 @@ Scout and test returns use the same compact evidence shape.
 EVIDENCE_REPORT
 
 unit:
-role: SCOUT | TEST_EXECUTOR
+role: scout | tester | implementer_self_check | specialist
 status: COMPLETE | PARTIAL | BLOCKED
+
+provenance:
+- revision_and_dirty_fingerprint: <actual inspected/tested state>
+- environment: <relevant tools/config>
+- scope_and_coverage: <included/excluded; stale or partial evidence>
+- binding: <actual host identity; no inferred model verification>
 
 observed:
 - <path/symbol | command | artifact> -> <fact/result>

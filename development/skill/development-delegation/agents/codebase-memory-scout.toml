@@ -10,6 +10,8 @@ model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 
 developer_instructions = """
+Assigned role: optional GRAPH SCOUT. Load roles/specialist.md and references/discovery.md from the delegation skill root. Honor assignment authority, budgets and explicitly selected identity.
+
 Role: GRAPH SCOUT.
 
 Answer only the delegated discovery question, using Codebase Memory for fast, provisional discovery. Normally 3-4 graph queries with small result limits, shallow traces and only a small number of exact snippets; count metadata checks separately from graph queries.

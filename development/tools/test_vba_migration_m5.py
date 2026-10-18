@@ -160,9 +160,11 @@ def test_saveastext_classification_gates_parser_and_workspace_inputs():
     )
 
 
-def test_documented_fixtures_are_synthetic_local_only_and_missing_is_a_stop(adapter):
+def test_optional_fixture_provenance_documents_synthetic_local_targets():
     # Read-only migration provenance; deployed workflows use the adapter policy.
     provenance_root = REPO_ROOT / "references" / "access-vba-dev"
+    if not provenance_root.exists():
+        pytest.skip("Optional read-only access-vba-dev source is absent in this checkout")
     testing = (provenance_root / "docs" / "testing.md").read_text(encoding="utf-8")
     controlled = _section(testing, "## Controlled Fixtures")
     _requires(
@@ -176,6 +178,9 @@ def test_documented_fixtures_are_synthetic_local_only_and_missing_is_a_stop(adap
     ignored = (provenance_root / ".gitignore").read_text(encoding="utf-8").splitlines()
     assert "test-fixtures/access/*.accdb" in ignored
     assert "test-fixtures/excel/*.xlsm" in ignored
+
+
+def test_managed_fixture_policy_is_always_validated_without_optional_sources(adapter):
     _requires(
         _section(adapter, "## 10. Fixture policy"),
         "Controlled synthetic fixtures (`.accdb` / `.xlsm`) are local-only assets",

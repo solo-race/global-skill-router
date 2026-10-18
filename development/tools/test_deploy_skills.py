@@ -700,7 +700,7 @@ def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_pa
             "name": "development-delegation",
             "routing_priority": 100,
             "routing_outcome": "continue",
-            "selector": "Repository planning/re-planning, no usable detailed current-phase plan, or delegated implementation under an existing plan or acceptance contract.",
+            "selector": "Repository work needing bounded direct execution, planning/re-planning, exploratory investigation, or dependency-aware delegated implementation.",
             "skill_path": "library/development-delegation/MODULE.md",
         },
         {

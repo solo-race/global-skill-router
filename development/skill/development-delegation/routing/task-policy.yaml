@@ -1,0 +1,96 @@
+# Declarative contract interpreted by the supervisor; not an executable scheduler.
+schema_version: 1
+kind: declarative-supervisor-policy
+defaults:
+  compatibility: dynamic
+  mode: auto
+  supervision: interactive
+  review_policy: risk_based
+compatibility:
+  dynamic:
+    explicit_selection_required: false
+  legacy:
+    explicit_selection_required: true
+    contract: references/legacy-compatibility.md
+modes:
+  direct:
+    eligibility: bounded_known_low_risk
+    contract: loops/direct.md
+    master_plan_required: false
+  planned:
+    eligibility: explicit_plan_or_complex_dependencies_or_high_risk
+    contract: loops/planning.md
+    master_plan_required: false
+  exploratory:
+    eligibility: unresolved_scope_or_solution
+    contract: loops/exploratory.md
+    read_only_by_default: true
+    experiments_require_explicit_bounded_authority: true
+supervision:
+  interactive:
+    missing_authority: ask_and_pause_affected_work
+  unattended:
+    missing_authority: block_and_report
+review:
+  policies:
+    on_demand: explicit_request_or_mandatory_override
+    risk_based: material_risk_or_uncertain_evidence_or_mandatory_override
+    always: every_plan_and_delivery_boundary
+  mandatory_high_risk: true
+  high_risk_triggers:
+    - security_or_permissions
+    - destructive_or_irreversible_changes
+    - migrations_or_data_loss
+    - external_or_production_effects
+    - consequential_api_or_compatibility_changes
+  contract: modules/review.md
+budgets:
+  max_concurrent_assignments: 2
+  max_total_assignments: 12
+  max_implementation_retries_per_unit: 2
+  max_evidence_refreshes_per_unit: 2
+  max_review_revisions_per_boundary: 2
+  max_planning_revisions: 2
+  max_exploration_passes: 2
+  max_experiments: 0
+  exhaustion: blocked
+  automatic_expansion: false
+roles:
+  scout: roles/scout.md
+  planner: roles/planner.md
+  implementer: roles/implementer.md
+  tester: roles/tester.md
+  reviewer: roles/reviewer.md
+  specialist: roles/specialist.md
+parallelism:
+  acyclic_dependencies_required: true
+  successful_dependencies_required: true
+  shared_resource_conflicts_block: true
+  stale_evidence_blocks_acceptance: true
+  mutable_work_requires_isolation: true
+  disjoint_ownership_required: true
+  integration_validation_required: true
+  contract: loops/implementation.md
+selection:
+  precedence: [explicit_valid_choice, unresolved_scope_or_solution, explicit_plan_or_complex_dependencies_or_high_risk, bounded_known_low_risk]
+  unresolved_scope_or_solution: exploratory
+  explicit_plan_or_complex_dependencies_or_high_risk: planned
+  bounded_known_low_risk: direct
+  otherwise: blocked
+transitions:
+  dependency_cycle: blocked
+  missing_dependency: blocked
+  failed_dependency: block_dependants
+  stale_evidence: reverify
+  zero_remaining_budget: blocked
+  missing_authority: blocked
+  unavailable_selected_identity: blocked
+  implicit_identity_fallback: forbidden
+  parallel_without_isolation: serialize
+  integration_failure: invalidate_affected_acceptance
+acceptance:
+  unit_requires_phase_exit: false
+  phase_requires_all_units: true
+  unit: current_unit_criteria_and_incremental_integration_and_required_review
+  phase: all_units_accepted_and_phase_exit_criteria_and_required_review
+  unit_checks_must_not_require_unfinished_successors: true
