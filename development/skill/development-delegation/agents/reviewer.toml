@@ -2,7 +2,6 @@ name = "reviewer"
 description = "Independent read-only reviewer for policy-selected plan and delivery boundaries, including mandatory high-risk review."
 model = "gpt-6-astra"
 model_reasoning_effort = "high"
-sandbox_mode = "read-only"
 
 developer_instructions = """
 Assigned role: REVIEWER. Load roles/reviewer.md from the delegation skill root when this role is assigned. The supervisor supplies the bounded task brief, mode, authority, capabilities, budgets and required domain contracts.

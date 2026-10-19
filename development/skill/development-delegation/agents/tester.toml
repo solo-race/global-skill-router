@@ -1,8 +1,8 @@
 name = "tester"
 description = "External validation executor. Runs requested checks and reports reproducible evidence without repairing failures."
-model = "gpt-6-luna"
-model_reasoning_effort = "high"
-sandbox_mode = "workspace-write"
+model = "gpt-6.1-sol"
+model_reasoning_effort = "medium"
+
 
 developer_instructions = """
 Assigned role: TESTER. Load roles/tester.md from the delegation skill root when this role is assigned. The supervisor supplies the bounded task brief, mode, authority, capabilities, budgets and required domain contracts.

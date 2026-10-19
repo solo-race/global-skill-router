@@ -1,8 +1,7 @@
 name = "scout-deepseek"
 description = "Read-only repository and document scout using the configured DeepSeek runtime route. Returns source-backed evidence without implementation."
 model = "deepseek-flash"
-model_reasoning_effort = "low"
-sandbox_mode = "read-only"
+model_reasoning_effort = "high"
 
 developer_instructions = """
 Assigned role: SCOUT. Load roles/scout.md from the delegation skill root when this role is assigned. The supervisor supplies the bounded task brief, mode, authority, capabilities, budgets and required domain contracts.

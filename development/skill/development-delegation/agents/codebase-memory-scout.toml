@@ -7,7 +7,6 @@ name = "codebase-memory-scout"
 description = "Fast read-only Codebase Memory scout for provisional repository-wide structural discovery."
 model = "gemini-3.8-flash"
 model_reasoning_effort = "high"
-sandbox_mode = "read-only"
 
 developer_instructions = """
 Assigned role: optional GRAPH SCOUT. Load roles/specialist.md and references/discovery.md from the delegation skill root. Honor assignment authority, budgets and explicitly selected identity.

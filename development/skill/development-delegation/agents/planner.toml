@@ -2,7 +2,6 @@ name = "planner"
 description = "High-reasoning planner. Converts a prepared evidence packet into a bounded executable plan or precise evidence requests."
 model = "gpt-6-astra"
 model_reasoning_effort = "high"
-sandbox_mode = "read-only"
 
 developer_instructions = """
 Assigned role: PLANNER. Load roles/planner.md from the delegation skill root when this role is assigned. The supervisor supplies the bounded task brief, mode, authority, capabilities, budgets and required domain contracts.
