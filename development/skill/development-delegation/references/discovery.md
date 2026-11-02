@@ -1,8 +1,14 @@
 # Discovery Selection
 
-Ordinary source scouting is the default. Skip extra scouting when supplied current
+Ordinary source inspection is the default, not an automatic scout dispatch. Skip extra scouting when supplied current
 source evidence is already sufficient. Exact-file tasks, narrow defects and document
 or configuration checks use ordinary inspection directly.
+
+Use scout `locate` for unknown entry points or relationships; `evidence_digest` for
+large evidence sets whose relevant findings can be returned compactly. Bound the
+question and return sources, counterevidence and gaps, not a copy of the input.
+Do not reread the same ground solely to fill a role; a narrow supervisor inspection
+may be cheaper than transferring its context. Neither mode authorizes experiments.
 
 Choose the existing `codebase-memory-scout` identity only when relevant files/symbols
 are unknown, cross-file relationships materially guide the task, and a suitable graph

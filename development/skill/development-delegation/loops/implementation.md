@@ -38,8 +38,10 @@ Isolated unit test passes never prove combined correctness.
 
 Failed prerequisites block their dependants; independent branches may continue only
 within existing authority/budgets. Do not integrate failed or partial outputs as accepted.
-Repair uses a bounded brief, existing binding and remaining retry budget. Testers report
-failures rather than repairing them. Stale evidence -> refresh/reverify affected checks;
+Repair uses a bounded brief, existing binding and remaining retry budget. Test executors
+report failures rather than repairing them. Test authors may repair only their owned
+test code; production fixes return to the implementer. Test and production ownership
+must not overlap in parallel work; revalidate their combined tree. Stale evidence -> refresh/reverify affected checks;
 changed scope/architecture -> ESCALATE_PLAN and pause affected writes. Failed integration
 invalidates affected acceptance and downstream evidence, even if isolated checks passed.
 Review REVISE consumes revision budget, then repair, revalidate and review again. BLOCK,

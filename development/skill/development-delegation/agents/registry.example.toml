@@ -10,11 +10,11 @@
 # references/graph-evidence-packet.md.
 
 [agents.scout]
-description = "Read-only repository and document scout. Returns source-backed evidence without implementation."
+description = "Read-only source locator and evidence digest. Returns bounded findings, sources and gaps without implementation."
 config_file = "./agents/scout.toml"
 
 [agents.scout-deepseek]
-description = "Read-only repository and document scout using the configured DeepSeek runtime route. Returns source-backed evidence without implementation."
+description = "Read-only source locator and evidence digest using the configured DeepSeek route. Returns bounded findings, sources and gaps."
 config_file = "./agents/scout-deepseek.toml"
 
 [agents.codebase-memory-scout]
@@ -34,11 +34,11 @@ description = "Bounded code implementer using the configured DeepSeek runtime ro
 config_file = "./agents/implementer-deepseek.toml"
 
 [agents.tester]
-description = "External validation executor. Runs requested checks and reports reproducible evidence without repairing failures."
+description = "Bounded test author or validation executor. Defaults to execution; never repairs production code."
 config_file = "./agents/tester.toml"
 
 [agents.tester-deepseek]
-description = "External validation executor using the configured DeepSeek runtime route. Runs requested checks and reports reproducible evidence without repairing failures."
+description = "Bounded test author or validation executor using the configured DeepSeek route. Defaults to execution; never repairs production code."
 config_file = "./agents/tester-deepseek.toml"
 
 [agents.reviewer]

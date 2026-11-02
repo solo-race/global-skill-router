@@ -3,7 +3,7 @@
 ## Task record and classification
 
 Persist a bounded task record: objective, acceptance, authorized scope/exclusions,
-mode with rationale, supervision, review policy, risk triggers, authority source,
+mode with a brief reason, supervision, review policy, risk triggers, authority source,
 selected identity/model constraints, capabilities, budget limits/counters, repository
 revision plus dirty-file fingerprints, dependency DAG, ownership, validation and status.
 Use existing project conventions; no new scheduler/database is implied. YAML is a
@@ -47,6 +47,27 @@ Supervisor owns classification, assignment, acceptance and escalation. Assign on
 needed roles; it may perform a small role inline only when authorized, with explicit
 role boundaries and actual evidence. Independent review must use a separate reviewer
 context. Load role instructions on assignment, not all role files on activation.
+
+## Lightweight dispatch decision
+
+Decide without a rationale chart, scorecard or per-dispatch checklist. Ordinary choices
+stay implicit; explain a non-obvious choice or change in at most one short sentence
+when useful. Reuse contract references; reassess only when new evidence changes work.
+
+- Known narrow work with sufficient evidence stays inline or with its implementer;
+  quick self-checks need no second executor.
+- Use scout `locate` for a material unknown, `evidence_digest` for high-volume/noisy
+  reading with a compact decision-relevant return. Skip already-covered discovery.
+- Use tester `test_author` for missing executable coverage, `test_executor` for
+  independent execution, special environments or long noisy checks. Authoring needs
+  explicit owned test paths; it is not the default.
+- Delegate when checkable output or context isolation outweighs startup, repeated
+  reading, handoff and integration costs. Keep tightly coupled work together or narrow
+  it first. Complexity, reading volume and risk differ: even a small permission change
+  can require independent review.
+
+This selects work, not authority. Preserve user constraints, counterevidence, mandatory
+independent review, identities, quota, budgets and isolation. Legacy gates remain.
 
 ## Finite budgets
 

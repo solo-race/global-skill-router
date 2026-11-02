@@ -60,6 +60,10 @@ def test_deployed_dynamic_contract_is_complete_and_private(tmp_path):
         for source in sources:
             if source.is_file():
                 assert (deployed / source.relative_to(ROOT)).read_bytes() == source.read_bytes()
+    # Role profiles and their owner-selected runtime bindings travel unchanged;
+    # only the top-level discovery metadata is omitted from a private module.
+    for profile in (ROOT / "agents").glob("*.toml"):
+        assert (deployed / "agents" / profile.name).read_bytes() == profile.read_bytes()
     _check_local_links(deployed)
     result = deploy.apply_payload(tmp_path / "installed", payload)
     assert result["ok"]
@@ -430,3 +434,63 @@ def test_incremental_dependency_acceptance_does_not_require_unfinished_phase(pol
     assert not phase_exit
     phase_exit = True
     assert phase_exit and (not acceptance["phase_requires_all_units"] or len(accepted) == len(units))
+
+
+@pytest.mark.parametrize("identity", ["scout", "scout-deepseek", "tester", "tester-deepseek"])
+def test_role_registration_examples_match_the_bound_profiles(identity):
+    tomllib = pytest.importorskip("tomllib", reason="TOML parsing requires Python 3.11+")
+    registry = tomllib.loads((ROOT / "agents" / "registry.example.toml").read_text(encoding="utf-8"))
+    entry = registry["agents"][identity]
+    profile_path = (ROOT / entry["config_file"].removeprefix("./")).resolve()
+    assert profile_path.is_relative_to(ROOT.resolve())
+    profile = tomllib.loads(profile_path.read_text(encoding="utf-8"))
+    assert profile["name"] == identity
+    assert entry["description"] == profile["description"]
+    role = identity.removesuffix("-deepseek")
+    # Profiles refer to the canonical role instead of binding a mode to a model.
+    assert f"roles/{role}.md" in profile["developer_instructions"]
+    assert profile["model"] and profile["model_reasoning_effort"]
+
+
+def test_tester_modes_do_not_turn_default_execution_into_write_authority(capabilities):
+    tester = capabilities["roles"]["tester"]
+    assert tester["default_mode"] == "test_executor"
+    assert tester["mutation"] == "mode_scoped_authority_only"
+    assert set(tester["modes"]) == {"test_executor", "test_author"}
+    assert set(tester["required"]) == {"read_source", "run_bounded_checks"}
+    executor = tester["modes"][tester["default_mode"]]
+    assert executor["mutation"] == "authorized_test_artifacts_only"
+    assert not any(capability.startswith("write_") for capability in executor.get("required", []))
+    author = tester["modes"]["test_author"]
+    assert author["required"] == ["write_owned_test_scope"]
+    assert author["explicit_authority_required"] is True
+    assert author["mutation"] == "explicitly_owned_tests_fixtures_helpers_only"
+    assert author["production_repair"] == "forbidden"
+    # Test creation never absorbs independent read-only acceptance.
+    reviewer = capabilities["roles"]["reviewer"]
+    assert reviewer["mutation"] == "forbidden"
+    assert reviewer["independent_context_required"] is True
+
+
+def test_scout_modes_cannot_add_mutation_or_another_registered_role(policy, capabilities):
+    scout = capabilities["roles"]["scout"]
+    assert set(scout["modes"]) == {"locate", "evidence_digest"}
+    assert scout["required"] == ["read_source"]
+    assert scout["mutation"] == "forbidden"
+    # These are bounded assignments of existing roles, not new always-on agents.
+    modes = set(scout["modes"]) | set(capabilities["roles"]["tester"]["modes"])
+    assert modes.isdisjoint(policy["roles"])
+
+
+@pytest.mark.parametrize("role", ["tester", "scout"])
+def test_role_modes_are_represented_in_native_and_alternate_profile_contracts(capabilities, role):
+    tomllib = pytest.importorskip("tomllib", reason="TOML parsing requires Python 3.11+")
+    modes = set(capabilities["roles"][role]["modes"])
+    module = (ROOT / capabilities["roles"][role]["module"]).read_text(encoding="utf-8")
+    for mode in modes:
+        assert re.search(r"\b" + re.escape(mode) + r"\b", module), mode
+    for name in (role, role + "-deepseek"):
+        profile = tomllib.loads((ROOT / "agents" / (name + ".toml")).read_text(encoding="utf-8"))
+        instructions = profile["developer_instructions"]
+        for mode in modes:
+            assert re.search(r"\b" + re.escape(mode) + r"\b", instructions), (name, mode)

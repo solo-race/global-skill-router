@@ -28,6 +28,7 @@ review and its applicable human approval. Interactive does not waive review;
 unattended does not grant authority. Explicitly selected [legacy compatibility](references/legacy-compatibility.md)
 preserves the earlier session gates; never activate it by inference.
 
+Use the supervisor's lightweight dispatch rules, not a rationale chart or fixed team.
 Load a role module from policy only when assigning that role. A role is behavior,
 not a model or registered identity. Use only necessary roles, not a mandatory team.
 Honor explicit host identities, model choices, approval and quota limits; no silent

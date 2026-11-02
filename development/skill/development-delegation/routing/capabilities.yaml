@@ -11,6 +11,7 @@ roles:
     module: roles/scout.md
     required: [read_source]
     mutation: forbidden
+    modes: [locate, evidence_digest]
   planner:
     module: roles/planner.md
     required: [read_evidence]
@@ -23,7 +24,16 @@ roles:
   tester:
     module: roles/tester.md
     required: [read_source, run_bounded_checks]
-    mutation: authorized_test_artifacts_only
+    mutation: mode_scoped_authority_only
+    default_mode: test_executor
+    modes:
+      test_executor:
+        mutation: authorized_test_artifacts_only
+      test_author:
+        explicit_authority_required: true
+        required: [write_owned_test_scope]
+        mutation: explicitly_owned_tests_fixtures_helpers_only
+        production_repair: forbidden
   reviewer:
     module: roles/reviewer.md
     required: [read_source, read_evidence]

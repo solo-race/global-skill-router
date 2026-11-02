@@ -27,6 +27,9 @@ Preserve the earlier workflow semantics:
    phase close; PASS is required. REVISE is bounded repair/revalidation/review, BLOCK
    stops. Dynamic review policy may add stricter review but never remove these gates.
 
+Legacy external validation uses `test_executor`; do not silently promote its selected
+tester into test authoring or replace it with implementer self-checks.
+
 Use current graph discipline, isolated DAG rules and finite budgets. Legacy gates are
 an explicit compatibility overlay, never an alternate route around safety. Do not
 silently migrate owner registrations, model/provider/effort settings or quota choices.

@@ -49,4 +49,7 @@ return:
 - PASS | REVISE | BLOCK
 ```
 
+Review test adequacy as well as results: do assertions exercise the claimed contract,
+and do mocks hide the failure path? Test-author conclusions need source-backed evidence
+and do not substitute for independent review. The reviewer does not author repairs.
 For `REVISE`/`BLOCK`, use the finding schema defined in `modules/review.md`.
