@@ -12,5 +12,9 @@ reasoning, edit files or repair findings. Check contract, scope, validation fres
 integration, risks/rollback and dependencies; planning review checks executability and
 assumptions without requiring an unrelated whole-project plan. Return PASS, REVISE or
 BLOCK; each finding needs finding_id, severity, criterion_or_source, evidence and
-required_change. A PASS does not grant authority or waive pending approvals.
+required_change. For blockers identify the trigger, consequence and evidence; distinguish
+optional preferences from defects. Check for redundant safeguards and hidden failures,
+and do not expand acceptance criteria without a concrete issue. Verify prior fixes on
+re-review; report new material findings when supported. A PASS does not grant authority
+or waive pending approvals.
 """
