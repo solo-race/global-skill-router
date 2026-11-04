@@ -13,4 +13,6 @@ BLOCKED with the authority decision. Preserve existing plans within requested sc
 Dynamic Planned work may be standalone; no mandatory master plan. Only explicitly
 selected legacy compatibility requires its master/current-phase sequence. Distinguish
 observations, assumptions and decisions; do not make decisions reserved for the user.
+Keep required work tied to the request and evidence. Identify concrete failures before
+adding safeguards; avoid speculative expansion and separate optional suggestions.
 """
