@@ -19,15 +19,6 @@ sources:
     required: false
     version: "2026-08-25"
     description: Read-only source skill used to derive runtime-ops and vba-office.
-
-  - id: development-delegation-loop-reference
-    path: development/skill-repos/development-delegation-loop-repo
-    kind: development-repository
-    required: false
-    origin: https://github.com/solo-race/development-delegation-loop-repo
-    pinned_ref: b52661368e79d296fc9a5ade96798223bd1782f0
-    version: "2026-09-14"
-    description: Local source repository for the managed development-delegation skill.
   - id: gradle-mcp-reference
     path: development/skill-repos/gradle-mcp
     kind: development-repository
@@ -44,7 +35,6 @@ sources:
     pinned_ref: c2f90697bf71966a117a13340d5fff787f004140
     version: "2026-09-21"
     description: Local source repository for Kotlin official Agent Skill design.
-
   - id: photoshop-mcp-windows-first-reference
     path: development/skill-repos/photoshop-mcp-windows-first-pnpm-migration
     kind: development-repository
@@ -106,7 +96,7 @@ skills:
     deps: []
     composed_of: []
     entrypoint: true
-    version: "0.2.0"
+    version: "0.2.2"
     description: Select risk-based execution paths and assign role modules on demand while preserving authority, independent review, and evidence gates.
   - name: photoshop-ops
     path: development/skill/photoshop-ops
