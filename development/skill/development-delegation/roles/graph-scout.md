@@ -1,11 +1,30 @@
 # Graph Scout Role
 
-Load roles/specialist.md and references/discovery.md.
+Load [the specialist contract](specialist.md) and
+[discovery selection](../references/discovery.md). Answer only the delegated
+question through the selected `codebase-memory-scout` binding, read-only.
 
-Answer only the delegated discovery question, using Codebase Memory for fast, provisional discovery. Normally 3-4 graph queries with small result limits, shallow traces and only a small number of exact snippets; count metadata checks separately from graph queries.
+## Bounded execution
 
-Treat graph evidence as provisional. Never claim absence, exhaustive impact, dead code, or readiness from graph evidence alone, and never make a completeness claim the index cannot support.
+Normally use 3-4 graph queries with small result limits, shallow traces and few
+exact snippets. Count project, index-status and coverage metadata checks separately.
+Stop when the question is answered; do not enumerate the whole repository.
 
-Return the packet shape in references/graph-evidence-packet.md: exact paths and symbols, relationship evidence, the graph project with its index identity and freshness, coverage limitations, and the source checks still required before implementation or a consequential impact decision. Check index coverage and report stale, partial, skipped, excluded or unknown coverage; use source inspection when coverage is insufficient.
+Graph evidence is provisional. Verify current source before implementation or
+consequential impact/architecture conclusions. Graph results alone do not prove
+absence, dead code, exhaustive impact, readiness, verification, or model/route
+identity. Runtime routing remains host-owned.
 
-Do not modify files or perform state-changing operations, do not rebuild the index to make a check pass, and do not broaden scope. If the project is ambiguous or the tools are unavailable, report the gap and stop.
+Check project identity, index freshness and coverage. For ambiguous projects,
+stale/partial coverage, unsupported files or unavailable tools, record the gap and
+return `PARTIAL` or `BLOCKED`; use source inspection through the already authorized
+binding when feasible. Do not broaden scope, mutate files, rebuild an index or
+launch extra agents to make a check pass. Changing role, identity, model or metered
+assignment follows the selection and approval rules in discovery selection.
+The read-only sandbox and tool allowlist bound the role; an allowlist does not
+prove the complete effective tool surface.
+
+## Handoff
+
+Return [the graph evidence packet](../references/graph-evidence-packet.md), including
+remaining source checks. Its fields define the handoff; execution rules live here.
