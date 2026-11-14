@@ -2,7 +2,13 @@
 
 ## Task record and classification
 
-Persist a bounded task record: objective, acceptance, authorized scope/exclusions,
+For known, bounded, low-risk same-context Direct work, use loops/direct.md: scope,
+change and observed validation suffice. Do not create a formal brief, persistent
+record, fingerprint or budget ledger just to execute that work. Existing limits and
+required approvals still apply. For delegated, resumed or coordinated work, record
+only the relevant fields below, reusing existing context:
+
+A bounded task record may include: objective, acceptance, authorized scope/exclusions,
 mode with a brief reason, supervision, review policy, risk triggers, authority source,
 selected identity/model constraints, capabilities, budget limits/counters, repository
 revision plus dirty-file fingerprints, dependency DAG, ownership, validation and status.
@@ -67,12 +73,13 @@ when useful. Reuse contract references; reassess only when new evidence changes 
   can require independent review.
 
 This selects work, not authority. Preserve user constraints, counterevidence, mandatory
-independent review, identities, quota, budgets and isolation. Legacy gates remain.
+independent review, identities, quota, budgets and isolation.
 
 ## Finite budgets
 
-Policy budgets are conservative ceilings, not spending authorization. Record limits
-and counters before dispatch; stricter host/user limits win. Count every launch,
+Policy budgets are conservative ceilings, not spending authorization. The inline
+Direct fast path needs no counter ledger; track repeated repairs only if they occur.
+For dispatch, exploration and coordinated work, record relevant limits and counters; stricter host/user limits win. Count every launch,
 continuation and retry toward total assignments, including failed dispatch attempts.
 Count a repair after failed validation as an implementation retry; each new review
 repair cycle, planning revision and evidence refresh consumes its named counter.
@@ -82,8 +89,9 @@ and experiments consume their own counters as well as any applicable assignments
 Check all relevant remaining counters before action and increment on action start.
 Counters survive mode changes, handoffs and resumes; do not reset them to escape a
 limit. A pass is one bounded question set and tool allowance declared in its brief.
-Explicitly authorized experiments also need a finite experiment count (default zero),
-time/tool/cost ceilings, workspace, rollback and stop conditions. No implicit retries.
+The local isolated diagnostic allowance is two experiments within existing authority;
+loops/exploratory.md defines its boundary. Experiments outside that allowance require
+separate bounded authority. No implicit retries beyond the applicable ceiling.
 Elapsed-time or cost ceilings, when supplied, are checked alongside count limits.
 
 Exhaustion -> BLOCKED with completed evidence, remaining work and the exact additional

@@ -13,7 +13,6 @@ under [profile-contract.md](profile-contract.md).
 - [Evidence gaps](#evidence-gaps)
 - [Canonical candidates (gated)](#canonical-candidates-gated)
 - [Profile extensions](#profile-extensions)
-- [Forbidden output](#forbidden-output)
 
 ## Core review packet
 
@@ -97,13 +96,3 @@ identifiers belongs to the profile's project bindings.
 Profiles place domain extensions exclusively under `profile_extensions`. Extensions may add
 fields but must not redefine the four evidence states, the fixed `sources`/`findings` fields, or
 `manual_review_reasons`.
-
-## Forbidden output
-
-Never emit:
-
-- a finding with no source-bound evidence path;
-- a confirmed claim supported only by a snippet, result title, model output, or visual guess;
-- a negative derived from missing or failed retrieval;
-- a fabricated identifier, date, quantity, relationship, or affiliation;
-- numeric scores, recommendation bands, automatic exclusions, or final verdicts.

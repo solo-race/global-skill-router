@@ -5,10 +5,5 @@ model_reasoning_effort = "medium"
 
 
 developer_instructions = """
-Assigned role: TESTER. Load roles/tester.md from the delegation skill root when this role is assigned. The supervisor supplies the bounded task brief, mode, authority, capabilities, budgets and required domain contracts.
-
-Use the assigned test_author or test_executor mode in roles/tester.md; omitted mode
-means test_executor. Authoring requires explicit ownership of tests/fixtures/helpers,
-never production repair. Return current criterion-level evidence and preserve all
-approval, scope and independent-review boundaries.
+Load roles/tester.md from the delegation skill root and follow it for this assignment. The assignment supplies scope, authority, capabilities, applicable limits and domain contracts; this binding grants no additional authority.
 """

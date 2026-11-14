@@ -10,7 +10,6 @@ request:
 - scope: project | current phase | requested subset
 
 mode_and_authority:
-- compatibility: dynamic | explicitly_selected_legacy
 - scope_authority: <source and unresolved decisions>
 - budgets_and_bindings: <selected constraints>
 - risk_and_review: <triggers and policy independent of supervision>
@@ -49,5 +48,4 @@ return:
 Keep observation separate from inference. Prefer exact paths, symbols, document sections, commands, and plan references. Do not collapse contradictory evidence into a single unsupported summary.
 
 A dynamic scoped plan may have no master plan or phase. Preserve existing project
-conventions without inventing broader scope. Legacy prerequisites apply only when
-explicitly selected.
+conventions without inventing broader scope.

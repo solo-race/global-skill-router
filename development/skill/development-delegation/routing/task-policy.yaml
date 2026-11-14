@@ -2,21 +2,22 @@
 schema_version: 1
 kind: declarative-supervisor-policy
 defaults:
-  compatibility: dynamic
   mode: auto
   supervision: interactive
   review_policy: risk_based
-compatibility:
-  dynamic:
-    explicit_selection_required: false
-  legacy:
-    explicit_selection_required: true
-    contract: references/legacy-compatibility.md
 modes:
   direct:
     eligibility: bounded_known_low_risk
     contract: loops/direct.md
     master_plan_required: false
+    inline_fast_path:
+      eligibility: same_context_known_bounded_low_risk
+      formal_brief_required: false
+      persistent_task_record_required: false
+      fingerprint_required: false
+      budget_ledger_required: false
+      authority_required: true
+      current_validation_required: true
   planned:
     eligibility: explicit_plan_or_complex_dependencies_or_high_risk
     contract: loops/planning.md
@@ -25,7 +26,13 @@ modes:
     eligibility: unresolved_scope_or_solution
     contract: loops/exploratory.md
     read_only_by_default: true
-    experiments_require_explicit_bounded_authority: true
+    local_experiments:
+      existing_task_authority_required: true
+      isolated_workspace_required: true
+      external_side_effects: forbidden
+      production_effects: forbidden
+      permission_expansion: forbidden
+      outside_scope: requires_separate_bounded_authority
 supervision:
   interactive:
     missing_authority: ask_and_pause_affected_work
@@ -52,7 +59,7 @@ budgets:
   max_review_revisions_per_boundary: 2
   max_planning_revisions: 2
   max_exploration_passes: 2
-  max_experiments: 0
+  max_experiments: 2
   exhaustion: blocked
   automatic_expansion: false
 roles:

@@ -3,16 +3,21 @@ name: photoshop-ops
 description: Govern authorized document operations through registered MCP; Use when operating selected local Adobe Photoshop documents.
 ---
 
-# Photoshop operations
+# Photoshop Operations
 
-Operate the selected documents within the project's art decisions and output rules. This self-contained module owns a terminal global route for those operations. Native Photoshop/COM operations remain **UNVERIFIED**; routing eligibility does not establish availability or permission. It does not handle imagegen, repository implementation, or MCP security review.
+Operate selected local Photoshop documents through the registered MCP's actual capabilities.
+This is a terminal global route, not image generation, repository implementation, or MCP security review.
+Native Photoshop/COM operations remain **UNVERIFIED** until exercised in the current environment.
 
-Environment: Windows, local Adobe Photoshop with COM available, and registered MCP tools whose actual contracts support the requested operation. No bundled runtime or assumed tool names.
+1. Read [the operation contract](references/operation-contract.md). Identify the document,
+   requested edits, and output. A direct user request is sufficient scope; managed-project work
+   additionally follows its project handoff and protected-layer rules.
+2. Discover registered tools and inspect their current schema and capabilities. A requested
+   Photoshop operation includes ordinary application launch, subject to the user's constraints.
+3. Make the requested edits using supported operations. Preserve protected layers and secure a
+   working copy or verified backup before destructive changes. Use reasonable artistic choices
+   within the request; ask only when a missing decision materially changes the result or authority.
+4. Verify the resulting document or export. Report actual changes and remaining uncertainty in
+   conversation; create report files only when requested. Preview transmission follows the contract.
 
-All relative paths resolve against this skill's own root. Before any operation, read [references/operation-contract.md](references/operation-contract.md); it owns the availability, authority, output, preview, protection, and recovery gates. Read [references/provenance.md](references/provenance.md) when assessing origin, adaptation eligibility, or licensing.
-
-1. Obtain the project handoff, including `project_id`, selected document/layer identifiers, permitted operations, art constraints, registered output rules, approvals, and preview policy.
-2. Establish actual registration, capabilities/version, document identity, and COM availability. Disclose any possible Photoshop launch before the check; obtain launch authorization when needed. Missing support means unavailable for that operation.
-3. Intersect task authorization, registered MCP policy, actual capabilities, and project art constraints. Preserve protected layers and enforce registered output rules: never expand permitted output paths or overwrite source files. High-impact operations need explicit authorization and an authorized working copy or verified recovery path.
-4. Invoke only supported, authorized operations. Keep previews local unless separately verified receiver-specific consent permits disclosure. Stop at missing support, authority, protection, recovery, or project decisions; do not use raw scripts, JSX, SendKeys, Actions, automatic fallback, installation, registration, or configuration changes.
-5. Return actual changed layers, operations performed, outputs produced, and unverified items in conversation. Write reports only on explicit user/project request at an authorized output path. Project art QC and owner acceptance remain with the art skill or designated reviewers.
+Paths are relative to this module. Attribution is retained in `LICENSE`.

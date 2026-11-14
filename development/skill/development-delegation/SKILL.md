@@ -15,18 +15,17 @@ Loop acceptance never changes the routing outcome.
 
 ## Select only what the task needs
 
-- **Direct**: known, bounded, low-risk work uses an implementation brief and explicit
-  validation; no master plan or automatic planner is required.
+- **Direct**: known, bounded, low-risk same-context work needs only scope, the change
+  and an observed completion check, not a formal brief or bookkeeping ledger.
 - **Planned**: requested planning, complex dependencies or consequential changes use
   a usable scoped plan. Preserve existing project conventions.
-- **Exploratory**: uncertain scope or solution starts read-only; experiments require
-  explicit bounded authority before any mutation.
+- **Exploratory**: start read-only; up to two isolated local diagnostic experiments
+  may use existing task authority. External effects require separate authorization.
 
 Supervision (`interactive` / `unattended`) and review policy (`on_demand` /
 `risk_based` / `always`) are independent. High-risk work always requires independent
 review and its applicable human approval. Interactive does not waive review;
-unattended does not grant authority. Explicitly selected [legacy compatibility](references/legacy-compatibility.md)
-preserves the earlier session gates; never activate it by inference.
+unattended does not grant authority.
 
 Use the supervisor's lightweight dispatch rules, not a rationale chart or fixed team.
 Load a role module from policy only when assigning that role. A role is behavior,

@@ -1,6 +1,7 @@
 # Implementation and Dependency DAG
 
-Execute a bounded Direct brief or usable Planned units. Scout only missing evidence,
+For delegated Direct assignments or usable Planned units, execute bounded work.
+Same-context Direct work uses loops/direct.md without this coordination machinery. Scout only missing evidence,
 assign the smallest adequate role set, implement within scope, then validate exact
 acceptance criteria. Do not require a master plan for Direct work. Use current source
 and references/supervisor.md for budgets, bindings and transitions.

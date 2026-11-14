@@ -41,47 +41,29 @@ preview, source-editing and other tools are not admitted by this version.
 ## 3. Operations
 
 All operations apply to the selected Windows Android/Gradle project. The following
-minimal signatures describe the adopted surface; current live schemas govern
+operation rules define the adopted surface; current live schemas govern
 argument construction. Do not extend the capability boundary just because a
 schema advertises more operations. Results are MCP tool results containing text,
 including formatted summaries/tables; do not assume a JSON result object.
 
-- `gradle(projectRoot, commandLine, background=false, captureTaskOutput=null,
-  invocationArguments={})`: pass an absolute project root and an argument array.
-  `:task` selects the root task, `:app:task` a specific project, while unqualified
-  `task` can select tasks across projects. Prefer foreground. Background is only
-  for persistent tasks or useful parallel work and returns a `BuildId`; retain
-  its server, root and requested tasks. Foreground returns a build summary and
-  outcome (or captured task output). Keep the returned BuildId when present.
-  `captureTaskOutput` can truncate to the final 100 lines or warn about incomplete
-  capture; it is never the test-result channel. Query the build for omitted data.
-- `gradle(stopBuildId)`: cancels that active build; other arguments are ignored.
-  Use only the observed handle belonging to this task. Cancellation is not rollback.
-- `query_build(buildId=null, kind="DASHBOARD", query=null, pagination,
-  outcome=null, testIndex=null, taskPath=null)`: without an id, returns recent
-  builds, not evidence for the selected project. Always pass the exact id for
-  verification. `TASKS`/`TESTS` queries use path/name prefixes; `CONSOLE` uses a
-  regex; `FAILURES`/`PROBLEMS` require the exact returned id. Refine or paginate
-  summaries until the requested scope is covered. `testIndex` distinguishes
-  repeated names and `taskPath` restricts tests. `DASHBOARD` gives lifecycle and
-  outcome; an empty failure filter does not prove success. This adapter omits
-  `outputFile` to keep observation free of report-file overwrites.
-- `wait_build(buildId, timeout=600.0, waitForFinished=false, waitFor=null,
-  waitForTask=null, afterCall=false)`: timeout is seconds. Supply a bounded wait
-  (normally at most 60 seconds per call); no regex/task condition means wait for
-  completion. `waitFor` is a log regex, `waitForTask` a task path, and `afterCall`
-  ignores earlier events. A condition may be met while the build remains running.
-  A timeout returns a console tail and leaves the build running. Re-query its
-  handle; do not launch a duplicate build or claim task success from a wait match.
-- `inspect_dependencies(projectRoot, projectPath=":", configuration=null,
-  sourceSet=null, dependency=null, checkUpdates=true, onlyDirect=true,
-  includeConsumers=false, updatesOnly=false, stableOnly=false, versionFilter=null,
-  pagination, excludeBuildscript=false)`: select an observed project/configuration.
-  For graph inspection set `checkUpdates=false`; updates require an update task
-  intent. `dependency` is a full-string regex. `includeConsumers=true` overrides
-  `onlyDirect`; `updatesOnly=true` forces update checking. Unresolved entries and
-  `[UPDATE CHECK SKIPPED]` remain unknown, not proof of currency. Results do not
-  edit dependency declarations or establish that an upgrade builds successfully.
+- `gradle`: pass the absolute project root and discovered task arguments.
+  Prefer foreground; retain the server, root, tasks and returned BuildId for
+  background work. Stop only an observed build owned by this task. Cancellation
+  is not rollback. Task-output capture may truncate and is not test evidence.
+- `query_build`: use the exact BuildId, not the default recent-build list.
+  Inspect lifecycle/outcome and requested task/test scope, refining filters or
+  pagination as needed. An empty failure filter does not prove success. Do not
+  use report-file output for observation-only work.
+- `wait_build`: use bounded waits (normally at most 60 seconds). A log/task
+  condition can match before completion; timeout leaves the build running.
+  Re-query the handle rather than launching a duplicate.
+- `inspect_dependencies`: select an observed project/configuration. Disable
+  update checks for graph-only inspection; enable them only for update intent.
+  Unresolved or skipped entries remain unknown. Inspection neither changes
+  declarations nor proves that an upgrade will build.
+
+Use live schemas for parameter names, defaults, filters and pagination. Keep
+calls within the admitted capability boundary even if a provider exposes more.
 
 MCP first: read `gradle/wrapper/gradle-wrapper.properties` before version-sensitive
 advice. Inspect settings or use `gradle` with `commandLine=[":projects"]`, then
@@ -223,15 +205,3 @@ Pass only task-required overrides. Do not assume IDE and provider JVMs agree.
   enable update checks only when needed by the request.
 
 Other intents follow the Core lifecycle within the declared capability boundary.
-
-## 10. Provenance
-
-`documented_fact`: design source is Apache-2.0 `rnett/gradle-mcp`, commit
-`493af5a8c87205a1e923ddf3dc6b2fa7812866ce`, especially upstream
-`src/main/kotlin/dev/rnett/gradle/mcp/tools/{ToolNames,GradleExecutionTools,GradleBuildLookupTools}.kt`,
-`tools/dependencies/GradleDependencyTools.kt`, `docs/tools/`, and the authored
-`src/main/skills/using-gradle/` guidance. These identify development evidence,
-not files to load after deployment. Wrapper fallback, bounded mutation policy
-and independent verification are this platform's adapted contract. Live provider
-compatibility and target execution are runtime observations, never inferred from
-this pinned source or offline validation.

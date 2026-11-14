@@ -4,9 +4,5 @@ model = "deepseek-flash"
 model_reasoning_effort = "high"
 
 developer_instructions = """
-Assigned role: SCOUT. Load roles/scout.md from the delegation skill root when this role is assigned. The supervisor supplies the bounded task brief, mode, authority, capabilities, budgets and required domain contracts.
-
-Use locate or evidence_digest under roles/scout.md and references/discovery.md.
-Return decision-sized source-backed findings, counterevidence and gaps; no raw-log
-dumps, duplicate broad discovery, experiments or changes.
+Load roles/scout.md from the delegation skill root and follow it for this assignment. The assignment supplies scope, authority, capabilities, applicable limits and domain contracts; this binding grants no additional authority.
 """
