@@ -25,3 +25,8 @@ pytest*
 ## Independent skill development repositories
 /development/skill-repos/*
 !/development/skill-repos/.gitkeep
+
+## environment variables
+.env
+.env.*
+secrets
