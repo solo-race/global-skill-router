@@ -546,3 +546,31 @@ def test_all_profiles_load_existing_canonical_role_without_copying_it():
         assert (ROOT / modules[0]).is_file(), path
         assert len(instruction.splitlines()) <= 2, path
         assert profile["model"] and profile["model_reasoning_effort"]
+
+
+def test_graph_binding_loads_role_and_packet_in_source_and_payload(tmp_path):
+    """Check the instruction-loading chain, not host/LLM runtime enforcement."""
+    import tomllib
+
+    payload = deploy.build_payload(deploy.DEFAULT_MANIFEST, tmp_path / "graph-staging")
+    for root in (ROOT, payload["payload_root"] / "library" / ROOT.name):
+        binding = tomllib.loads((root / "agents/codebase-memory-scout.toml").read_text())
+        assert "roles/graph-scout.md" in binding["developer_instructions"]
+        role = (root / "roles/graph-scout.md").read_text()
+        discovery = (root / "references/discovery.md").read_text()
+        packet = (root / "references/graph-evidence-packet.md").read_text()
+        assert "(../roles/graph-scout.md)" in discovery
+        assert "(specialist.md)" in role
+        assert "(../references/discovery.md)" in role
+        assert "(../references/graph-evidence-packet.md)" in role
+        # Query guidance belongs to execution, not dispatch or the output schema.
+        assert "3-4" in role
+        assert "3-4" not in discovery + packet
+        body = re.search(r"```text\n(.*?)```", packet, re.DOTALL).group(1)
+        fields = re.findall(r"^([a-z_]+):", body, re.MULTILINE)
+        assert fields == ["unit", "role", "status", "pass", "observed",
+                          "relationships", "coverage", "source_checks_still_required",
+                          "inference", "blockers_or_scope_notes"]
+        assert "status: COMPLETE | PARTIAL | BLOCKED" in body
+        for field in ("project", "index", "freshness", "metadata_checks", "graph_queries"):
+            assert f"- {field}:" in body
