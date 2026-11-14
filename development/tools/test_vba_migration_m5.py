@@ -199,18 +199,13 @@ def test_managed_fixture_policy_is_always_validated_without_optional_sources(ada
 
 
 def test_non_office_and_unrelated_host_tasks_do_not_preload_vba_knowledge(adapter):
-    router = (SKILL_ROOT / "global-skill-router" / "SKILL.md").read_text(encoding="utf-8")
-    _requires(
-        router,
-        "On `ROUTE_TERMINAL`, stop routing with zero scenario shards read",
-        "Read only that scenario's registered shard",
-        "report `ROUTE_NO_MATCH` and continue without loading a managed module",
-        "Never scan `library/`, glob module paths, or pre-read unselected modules",
-    )
-    _requires(
-        _read("SKILL.md"),
-        "Load only the adapter matching the current host and toolchain",
-    )
+    # Routing/host isolation is exercised against assembled shards in M4.
+    # Here check the companion entrypoints, not the router's prose wording.
+    lazy = _section(adapter, "### Lazy-load index")
+    for mode in ("diagnose", "review", "modify", "test"):
+        path = f"workflows/vba-office/{mode}.md"
+        assert path in lazy
+        assert (RUNTIME_ROOT / path).is_file()
     _requires(
         _section(adapter, "### Lazy-load index"),
         "Load only the selected workflow and references needed for the identified host and question",

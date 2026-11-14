@@ -20,5 +20,4 @@ dependencies before dispatch. Apply modules/review.md at the plan boundary; requ
 review must PASS before PLAN_SEALED. Sealing a plan does not authorize implementation.
 
 When execution is authorized, use loops/implementation.md. A plan-only request ends
-with the sealed plan; do not automatically implement it. Legacy compatibility alone
-retains its whole-project planning prerequisite and supervision-derived review gates.
+with the sealed plan; do not automatically implement it.

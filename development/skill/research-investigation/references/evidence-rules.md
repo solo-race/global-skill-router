@@ -7,7 +7,6 @@ output remains a human-review packet; these rules never create canonical facts i
 ## Contents
 
 - [State vocabulary](#state-vocabulary)
-- [Prohibited parallel states](#prohibited-parallel-states)
 - [Source admissibility](#source-admissibility)
 - [Subject and claim matching](#subject-and-claim-matching)
 - [Coverage failures and gaps](#coverage-failures-and-gaps)
@@ -16,25 +15,8 @@ output remains a human-review packet; these rules never create canonical facts i
 
 ## State vocabulary
 
-Assess every material question with exactly one of these four states:
-
-| State | Use when | Required handling |
-|---|---|---|
-| `confirmed` | An accessible, original or authoritative source explicitly states the claim and directly identifies the subject, site, or project context. | Preserve a bounded excerpt and full source citation. |
-| `inferred` | Relevant accessible evidence supports a reasoned conclusion but does not state it explicitly. | Preserve reasoning, supporting excerpts, and mandatory human review. |
-| `unknown` | The reviewed coverage contains no adequate support. | Leave the value unresolved; record what was searched and why it remains unknown. |
-| `conflicting` | Two or more accessible sources identifying the same subject make materially incompatible claims. | Preserve all incompatible values and excerpts; never select a winner silently. |
-
-Routing: `confirmed`, `inferred`, and `conflicting` assessments become `findings[]` entries.
-`unknown` never becomes a finding: a question without adequate support is recorded once, in
-`evidence_gaps[]`, with state `unknown`, what was searched, and why support remains inadequate.
-`unknown` is an epistemic state — it never means "no", "does not exist", or "not relevant".
-
-## Prohibited parallel states
-
-Never use `probable`, `not_verified`, `not_found`, `contradicted`, `yes`, or `no` as parallel
-status values. Express those situations through `inferred`, `unknown`, or `conflicting` plus an
-explicit reason. `unknown` never means "no", "does not exist", or "not relevant".
+Use the four states and finding/gap routing defined in the Core module's **Evidence handling**
+section. The checks below establish whether a source supports that assessment.
 
 ## Source admissibility
 

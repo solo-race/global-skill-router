@@ -1,3 +1,5 @@
+# Retired reference: not an active runtime contract
+
 # Explicit Legacy Compatibility
 
 Load only when the operator explicitly chooses `compatibility: legacy`. Existing

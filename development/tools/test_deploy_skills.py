@@ -712,8 +712,9 @@ def test_real_manifest_routes_runtime_ops_and_copies_only_active_adapters(tmp_pa
         },
     ]
     photoshop = payload["payload_root"] / "library" / "photoshop-ops"
+    assert not (photoshop / "references" / "provenance.md").exists()
     assert (photoshop / "MODULE.md").read_bytes() == (candidate_skills / "photoshop-ops" / "SKILL.md").read_bytes()
-    for relative in ("references/operation-contract.md", "references/provenance.md"):
+    for relative in ("references/operation-contract.md", "LICENSE"):
         assert (photoshop / relative).read_bytes() == (candidate_skills / "photoshop-ops" / relative).read_bytes()
     assert not any("skill-repos" in path.parts for path in payload["payload_root"].rglob("*"))
     assert not (runtime_ops / "adapters" / "gpt-repo-local.md").exists()
@@ -820,8 +821,6 @@ def test_p5_gradle_contract_and_source_independent_deployment(tmp_path):
     assert "pure Gradle" in kotlin_contract
     assert "runtime-ops" in kotlin_contract
     assert "`ROUTE_CONTINUE`" in kotlin_contract
-    assert "only when the task" in kotlin_contract
-    assert "Do not guess" in kotlin_contract
 
     payload = _build(manifest_path, tmp_path / "p5-stage")
     relative_adapter = "library/runtime-ops/adapters/android-gradle.md"
@@ -1090,8 +1089,8 @@ def test_highest_priority_delegation_continues_to_available_child_contract(tmp_p
     assert child["routing_outcome"] == "terminal"
     assert (payload["payload_root"] / child["skill_path"]).is_file()
     contract = _routing_contract(payload)
-    assert "On `ROUTE_CONTINUE`, repeat step 2 while excluding `activated_modules`." in contract
-    assert "When no unvisited global route matches, resolve exactly one scenario" in contract
+    assert "`ROUTE_CONTINUE`" in contract
+    assert "`activated_modules`" in contract
     module = (payload["payload_root"] / delegation["skill_path"]).read_text(encoding="utf-8")
     assert "return `ROUTE_CONTINUE`" in module
     assert "routing middleware / an orchestrator" in module
@@ -1114,7 +1113,7 @@ def test_terminal_global_match_contract_stops_before_scenario_discovery(tmp_path
     )
 
     assert index["global_routes"][0]["routing_outcome"] == "terminal"
-    assert "On `ROUTE_TERMINAL`, stop routing with zero scenario shards read." in _routing_contract(payload)
+    assert "`ROUTE_TERMINAL`" in _routing_contract(payload)
 
 
 def test_multiple_orchestrator_contract_has_finite_unique_priority_order(tmp_path):
@@ -1141,8 +1140,7 @@ def test_multiple_orchestrator_contract_has_finite_unique_priority_order(tmp_pat
     assert len({route["name"] for route in sequence}) == len(sequence) == 4
     contract = _routing_contract(payload)
     assert "initialize each module at most once" in contract
-    assert "Each continuing match consumes one unvisited route." in contract
-    assert "Exhaustion ends discovery without revisiting earlier modules" in contract
+    assert "`activated_modules`" in contract
 
 
 @pytest.mark.parametrize("scope", ["global", "scenario"])

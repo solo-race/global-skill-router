@@ -42,7 +42,7 @@ Which operations change state, at what granularity, with what blast radius. Whol
 
 ## 6. Verification model
 
-Declare the full `verification_model` block per `references/verification-ladder.md`, consistent with frontmatter `verification_model_kind`: states with required evidence and non-claims, relations, unsupported states with reasons.
+Declare the full `verification_model` block per `verification-ladder.md`, consistent with frontmatter `verification_model_kind`: states with required evidence and non-claims, relations, unsupported states with reasons.
 
 ## 7. Recovery model
 

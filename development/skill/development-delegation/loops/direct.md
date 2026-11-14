@@ -1,16 +1,22 @@
 # Direct Execution
 
-Use a brief when files/solution and acceptance are known, scope bounded and risk low.
-A master plan, planning role and fixed team are unnecessary. Include authority,
-identity constraints, ownership, checks and finite budgets in the brief.
+Known, bounded, low-risk work in the same context uses a lightweight fast path:
+confirm the requested scope and a concrete completion check, make the change, and
+report the checks actually run. No formal brief, persistent task record, baseline
+fingerprint, budget ledger, master plan or extra role is required. Existing user,
+host, identity/model and quota limits still apply; fast path is not an authority grant.
 
-Inspect only missing relevant evidence; assign an implementer only if needed. Validate
-against explicit criteria. Use tester `test_author` for missing executable coverage;
-use `test_executor` when independent execution or specialized tools are needed.
-Implementation self-checks may be allowed by the brief, but are not
-independent review. Apply modules/review.md regardless of human availability.
+Inspect only missing relevant evidence. Quick implementer self-checks need no second
+executor and are not independent review. Apply modules/review.md when required.
+Accept only evidence for the current changed state, including combined-tree checks
+where relevant; report unavailable checks rather than claiming success.
 
-Accept only current criterion-level evidence and, for multiple changes, combined-tree
-validation. New uncertainty -> Exploratory read-only; complex dependencies or risk ->
-Planned. Pause writes while authority/contract is unresolved; preserve counters and
-permissions. Follow loops/implementation.md for execution and recovery semantics.
+For a handoff, provide a concise bounded assignment using
+references/implementation-brief.md as an optional field guide. Load
+loops/implementation.md for dependencies, parallel work or recovery. Parallel writers
+still require isolated workspaces and disjoint ownership; serial inline work does not
+need a DAG. Repeated failed repairs use the policy retry ceiling, not unlimited retries.
+
+New uncertainty -> Exploratory; complex dependencies or material risk -> Planned.
+Pause only the affected action when authority or scope is unresolved. Carry existing
+limits and evidence forward when escalating; never reset consumed budgets.

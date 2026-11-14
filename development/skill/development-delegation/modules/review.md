@@ -13,7 +13,7 @@ classification, plan sealing, scope change and delivery/integration boundaries.
 High-risk plans require review before execution; delivered changes require review of
 the actual integrated state before acceptance. Review is additional to required user
 approval and cannot grant permission. Interactive cannot waive a mandatory review;
-unattended cannot waive an approval. Legacy compatibility adds its historical gates.
+unattended cannot waive an approval.
 
 Use a separate read-only reviewer context with references/review-package.md: contract,
 diff/plan, source-backed validation, repository fingerprint, prior findings and risks.

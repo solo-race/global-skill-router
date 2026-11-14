@@ -101,27 +101,18 @@ def test_display_remains_presentation_only():
     assert set(profile["display"]) == {"display_name", "short_description"}
 
 
-def test_unknown_routing_consistent_skil_and_references():
-    skill = _read(SKILL_DIR / "SKILL.md").lower()
-    rules = _read(SKILL_DIR / "references" / "evidence-rules.md").lower()
-    schema = _read(SKILL_DIR / "references" / "output-schema.md").lower()
-    # findings admit exactly three states; unknown never becomes a finding.
+def test_core_owns_states_and_schema_preserves_gap_boundary():
+    skill = _read(SKILL_DIR / "SKILL.md")
+    rules = _read(SKILL_DIR / "references" / "evidence-rules.md")
+    schema = _read(SKILL_DIR / "references" / "output-schema.md")
+    states = re.findall(r"^\| `(\w+)` \|", skill, re.MULTILINE)
+    assert states == ["confirmed", "inferred", "unknown", "conflicting"]
+    assert not re.findall(r"^\| `(\w+)` \|", rules, re.MULTILINE)
+    assert "Evidence handling" in rules
+    # Output ABI: unsupported questions stay in gaps, not findings.
     assert "one of `confirmed`, `inferred`, or `conflicting`" in schema
-    assert "never becomes a finding" in schema
-    assert "`unknown` never becomes a finding" in rules
-    assert "never a finding" in skill
-    # evidence_gaps is the single home of unknown.
     assert "state` (always `unknown`)" in schema
-    # failed/partial retrieval may explain gaps but never resolve them.
-    assert re.search(r"failed or partial retrieval\s+explains a gap; it never resolves one", schema)
-    # unknown is epistemic, not negative.
-    assert 'never means "no"' in rules
-    assert "a negative derived from missing or failed retrieval" in schema
-    assert "never write definitive negatives solely because a search failed" in rules
-    # forbidden wording that would let unknown leak into findings.
-    assert "finding is unknown" not in rules
-    assert "finding is unknown" not in schema
-    assert "one of the four states;one of" not in schema
+    assert "never becomes a finding" in schema
 
 
 def test_core_is_domain_neutral():
