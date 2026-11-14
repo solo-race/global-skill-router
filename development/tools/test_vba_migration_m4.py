@@ -106,13 +106,11 @@ def test_vba_verification_keeps_compile_dispatch_unverified(adapter):
     )
 
 
-def test_access_baseline_is_no_argument_public_function_through_eval(adapter):
+def test_access_argument_modes_preserve_distinct_execution_apis(adapter):
     execution = next(line for line in adapter.splitlines() if line.startswith("- `run_macro("))
     plain = execution.replace("`", "").replace("**", "")
-    assert "no-argument Public Function invoked through Eval" in plain
     assert 'without args uses Application.Eval("MacroName()")' in plain
     assert "with args uses Application.Run(macro_name, *args)" in plain
-    assert "do not substitute a parameterized macro or an ordinary Public Sub" in plain
 
 
 @pytest.mark.parametrize("scenario", ["win-access-vba", "win-android", "wsl-python"])

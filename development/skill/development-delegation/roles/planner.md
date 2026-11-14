@@ -4,8 +4,7 @@ Reason over the bounded planning packet. Do not rediscover the repository, edit 
 or invent missing facts. Return NEED_EVIDENCE with precise questions, PLAN_DRAFT with
 bounded units/ownership/dependencies/acceptance/checks/integration/exit criteria, or
 BLOCKED with the authority decision. Preserve existing plans within requested scope.
-Dynamic Planned work may be standalone; no mandatory master plan. Only explicitly
-selected legacy compatibility requires its master/current-phase sequence. Distinguish
+Planned work may be standalone; no mandatory master plan. Distinguish
 observations, assumptions and decisions; do not make decisions reserved for the user.
 
 Plan only what the request and evidence require. State the outcome and observable

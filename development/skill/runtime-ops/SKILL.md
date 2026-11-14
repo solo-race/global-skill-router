@@ -38,21 +38,21 @@ Adapters may layer mode-specific workflows onto this sequence, but they may not 
 
 ## Adapter routing
 
-Load only the adapter matching the current host and toolchain, before its capabilities are first needed in the current task/session scope. A selected module may be adapter-free when the operation needs no external host/tool capability. During current routing with a v4 route index, when the selected scenario shard selects this module and an adapter is needed, treat the selected module candidate's nested `adapters` mapping as the authoritative adapter registry: compare active mapping descriptions with task and host/toolchain evidence, require exactly one match, and report missing-contract or adapter-ambiguity before reading any adapter when the match count is zero or greater than one. Use `adapter_path` only to locate the uniquely selected contract relative to `router_root`. Do not scan `library/` or an owner's `adapters/` directory for alternatives. If the current route has no matching mapping, stop the adapter-dependent operation and report the missing contract rather than guessing. Legacy route-index v1/v2/v3 payloads are accepted only by the deployment verifier for installed-payload recovery; do not use them as current routing input, and redeploy before routing. Reuse the loaded contract for subsequent operations in that continuous scope while adapter identity, provider/catalog compatibility, capability boundary, and the relevant contract remain unchanged and reliably available in context. Do not reread the complete adapter for every call.
+Load only the adapter selected by the current v4 route's nested `adapters`
+mapping before using its capabilities. Match task and host/toolchain evidence
+against active descriptions: zero matches means unavailable, multiple matches
+mean ambiguous. Stop only the adapter-dependent work in either case. Resolve
+the unique `adapter_path` against `router_root`; do not scan for alternatives.
+No adapter is needed for work without external host/tool capabilities.
 
-Reload the contract or reconfirm the affected requirement before proceeding when:
-
-- switching adapters;
-- requesting a capability not covered by the loaded contract;
-- provider/version/protocol/catalog compatibility changes or needs reconfirmation;
-- context is lost or compacted so the contract's continued availability cannot be reliably established;
-- the adapter requires a precondition to be revalidated.
-
-Loaded means current model context only: no persistent cache, disk cache, daemon state, or hidden cross-session state. Reuse does not waive capability checks or operation-specific preconditions. If none matches, do not guess a contract from a similar host; report the missing adapter and continue only with work that needs no undeclared capability. Adapter documents follow `references/contract-template.md`.
+Reuse the contract while it remains available in the current task context and
+its identity, provider compatibility and capability scope remain current.
+Reload or reconfirm the affected requirement when those change. Check each
+operation's preconditions even when reusing the adapter.
 
 ## Verification discipline
 
-Every adapter declares a verification model (`references/verification-ladder.md`): states with required evidence, explicit non-claims, inter-state relations, and unsupported states. Iron rule: never report a higher or stronger verification state than the evidence actually achieved. Only linear models may use highest-achieved wording; every other model reports each state individually as achieved or unverified. One evidence item proves only the scope its state declares, and a successful mutation never substitutes for a stronger state's evidence.
+Follow the selected adapter’s verification model: states with required evidence, explicit non-claims, inter-state relations, and unsupported states. Iron rule: never report a higher or stronger verification state than the evidence actually achieved. Only linear models may use highest-achieved wording; every other model reports each state individually as achieved or unverified. One evidence item proves only the scope its state declares, and a successful mutation never substitutes for a stronger state's evidence.
 
 ## Mutation and recovery
 
@@ -60,7 +60,9 @@ Before a high-impact mutation, the adapter's recovery contract must name the mec
 
 ## Evidence discipline
 
-Classify every knowledge claim as exactly one of `documented_fact`, `evidence_based_inference`, `verified_empirical_behavior`, `project_convention`, `community_guidance`. Apply the source-priority template in `references/evidence-types.md`; a lower-priority source never overrides a higher-priority one for the same claim. Add information only when it is likely to change an agent's decision.
+Separate documented behavior, observed results and inference. Resolve source
+conflicts using the selected adapter's source policy; never generalize a single
+experiment beyond its recorded environment and scope.
 
 ## Prohibited behaviors
 

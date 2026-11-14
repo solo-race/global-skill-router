@@ -1,6 +1,7 @@
 # Implementation Brief
 
-Pass only the information needed for this acceptance unit. Stable rules live in
+Use for handoffs or coordinated units, not as a prerequisite for same-context Direct
+work. Pass only the information needed for this acceptance unit. Stable rules live in
 the loaded module contract (source `SKILL.md`, deployed payload `MODULE.md`).
 
 ```text
@@ -52,6 +53,6 @@ rationale chart or dispatch scorecard. Omitted role_mode defaults to test_execut
 An explicit test_author assignment without owned test paths or write authority is
 BLOCKED pending clarification, never silently downgraded to test_executor.
 
-Direct work uses this brief without a master plan. An exploratory experiment also
-requires explicit mutation scope, finite experiment/time/tool/cost bounds, rollback
-and stop conditions; a brief alone is not permission.
+Same-context Direct work follows loops/direct.md without this form. Local diagnostic
+experiments follow loops/exploratory.md within existing authority; this brief grants
+no permissions.

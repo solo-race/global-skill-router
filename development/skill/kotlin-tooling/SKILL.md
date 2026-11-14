@@ -7,23 +7,13 @@ description: Kotlin-specific toolchain, project-identity, and migration guidance
 
 ## Contract
 
-This module is a Kotlin-specific decision layer. It does not define a Gradle
-tool ABI, run commands, parse provider results, or replace the selected
-`runtime-ops` adapter. For pure Gradle discovery, build, test, diagnosis, or
-task execution, load `runtime-ops` with the routed `android-gradle` adapter and
-do not load this module merely because the sources are Kotlin. Load this module
-when the task requires Kotlin Toolchain, Kotlin source-set, Kotlin plugin, KMP,
-or AGP migration decisions.
+This module owns Kotlin Toolchain, source-set, plugin, KMP, and AGP migration decisions.
+For pure Gradle discovery, build, test, or diagnosis, select `runtime-ops` and its
+`android-gradle` adapter directly. This module does not define a runtime ABI.
 
-For a `win-android` task that needs Kotlin-specific decisions, initialize this
-module before the lower-priority runtime route within the same shard. Return `ROUTE_CONTINUE` after its decision. Keep the Kotlin decision contract active while discovery checks
-whether `runtime-ops` is also applicable. Load `runtime-ops` only when the task
-requires its Android/Gradle runtime capabilities; exhausting discovery after
-the Kotlin decision is valid for decision-only work.
-
-All paths in this module are relative to the directory containing this file.
-The source checkout used to derive these rules is development-only evidence and
-is never a runtime dependency.
+For Kotlin-specific `win-android` work, initialize this higher-priority module and return
+`ROUTE_CONTINUE`. Retain its decisions while discovery considers `runtime-ops`; decision-only
+work can finish without a runtime route. All paths are relative to this module.
 
 ## Identify the project authority
 
@@ -37,9 +27,6 @@ Inspect the repository root before choosing a workflow:
   execution to `runtime-ops` and `android-gradle`.
 - If both sets are present, treat the repository as a migration or mixed
   project only after inspecting which files are authoritative. Do not guess.
-- A pure Gradle task does not require this module. A Kotlin migration or
-  Toolchain decision may require both modules, while execution still requires a
-  declared runtime capability.
 
 In a Kotlin Toolchain project, `project.yaml` declares modules and local
 plugins; a module's identity comes from the directory containing `module.yaml`.

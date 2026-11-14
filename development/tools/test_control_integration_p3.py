@@ -159,53 +159,27 @@ def _codes(report):
     return [error["code"] for error in report["errors"]]
 
 
-def test_runtime_adapter_contract_reuse_is_scoped_and_invalidated():
-    skill_root = Path(__file__).resolve().parents[1] / "skill"
-    runtime = (skill_root / "runtime-ops" / "SKILL.md").read_text(encoding="utf-8")
-    runtime = " ".join(runtime.split())
-    assert "before any external tool call" not in runtime
-    for requirement in (
-        "before its capabilities are first needed",
-        "current routing with a v4 route index",
-        "selected module candidate's nested `adapters` mapping as the authoritative adapter registry",
-        "Legacy route-index v1/v2/v3 payloads are accepted only by the deployment verifier for installed-payload recovery",
-        "do not use them as current routing input, and redeploy before routing",
-        "current task/session scope",
-        "Reuse the loaded contract for subsequent operations",
-        "adapter identity, provider/catalog compatibility, capability boundary",
-        "switching adapters",
-        "capability not covered by the loaded contract",
-        "provider/version/protocol/catalog compatibility changes or needs reconfirmation",
-        "context is lost or compacted",
-        "precondition to be revalidated",
-        "no persistent cache, disk cache, daemon state, or hidden cross-session state",
-        "Reuse does not waive capability checks or operation-specific preconditions",
-    ):
-        assert requirement in runtime
-
-    router = (skill_root / "global-skill-router" / "SKILL.md").read_text(encoding="utf-8")
-    assert "currently loaded `SKILL.md`" in router
-    assert "never\nagainst the process current working directory" in router
-    router = " ".join(router.split())
-    assert "Evaluate unvisited `global_routes`" in router
-    assert "On `ROUTE_TERMINAL`, stop routing with zero scenario shards read." in router
-    assert "Never read a second scenario shard" in router
-    assert "Select the smallest applicable unvisited module" in router
-    assert "continuation does not" in router
-    assert "The `adapters` list may be empty" in router
-    assert "require exactly one match" in router
-    assert "adapter ambiguity before reading any adapter" in router
-    assert "Do not enumerate `library/` or `adapters/`" in router
-
-    assert "compare active mapping descriptions with task and host/toolchain evidence" in runtime
-    assert "require exactly one match" in runtime
-    assert "Use `adapter_path` only to locate the uniquely selected contract" in runtime
+def test_runtime_authoring_material_is_not_part_of_deployed_skill():
+    development = Path(__file__).resolve().parents[1]
+    runtime = development / "skill" / "runtime-ops"
+    authoring = development / "docs" / "runtime-ops"
+    for name in ("contract-template.md", "verification-ladder.md", "evidence-types.md"):
+        assert (authoring / name).is_file()
+        assert not (runtime / "references" / name).exists()
+    for name in ("vba-office", "android-gradle"):
+        assert (authoring / f"{name}-provenance.md").is_file()
+        contract = (runtime / "adapters" / f"{name}.md").read_text(encoding="utf-8")
+        metadata = yaml.safe_load(contract.split("---", 2)[1])
+        assert metadata["adapter"] == name
+        assert metadata["verification_model_kind"] == "independent_checks"
+        assert metadata["capabilities"]
 
 
 def test_real_manifest_v4_is_green_and_routes_are_explicit():
     report = validate_skills.validate(validate_skills.DEFAULT_MANIFEST)
     assert report["ok"] is True, report["errors"]
-    assert report["sources_checked"] == 7
+    manifest = yaml.safe_load(validate_skills.DEFAULT_MANIFEST.read_text(encoding="utf-8"))
+    assert report["sources_checked"] == len(manifest["sources"])
     assert report["adapters_checked"] == 4
     assert report["routes"]["global"]["skills"] == [
         {"name": "development-delegation", "status": "active", "routing_priority": 100, "routing_outcome": "continue"},

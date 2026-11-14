@@ -67,7 +67,19 @@ Non-configurable in every run:
 
 ## Evidence handling
 
-Exactly four evidence states exist: `confirmed`, `inferred`, `unknown`, `conflicting`.
+Exactly four evidence states exist:
+
+| State | Use when | Required handling |
+|---|---|---|
+| `confirmed` | An accessible, original or authoritative source explicitly states the claim and directly identifies the subject, site, or project context. | Preserve a bounded excerpt and full source citation. |
+| `inferred` | Relevant accessible evidence supports a reasoned conclusion but does not state it explicitly. | Preserve reasoning, supporting excerpts, and mandatory human review. |
+| `unknown` | The reviewed coverage contains no adequate support. | Leave the value unresolved; record what was searched and why it remains unknown. |
+| `conflicting` | Two or more accessible sources identifying the same subject make materially incompatible claims. | Preserve all incompatible values and excerpts; never select a winner silently. |
+
+Only `confirmed`, `inferred`, and `conflicting` belong in `findings[]`; `unknown`
+belongs in `evidence_gaps[]`, never means a negative, and is not a parallel status
+such as `not_found` or `probable`.
+
 Admissibility, subject-match tiers, conflict preservation, and mandatory review triggers live in
 [evidence-rules.md](references/evidence-rules.md). Source hierarchy, bounded discovery, and
 language discipline live in [evidence-taxonomy.md](references/evidence-taxonomy.md).
@@ -87,17 +99,3 @@ Default: the review packet defined in [output-schema.md](references/output-schem
 Fact candidates may be produced only when the profile's `pipeline_binding.mode` admits them and
 the caller supplies the canonical source records the binding names. Even then, nothing is written
 automatically into any project fact store or scoring stage.
-
-## Prohibited behaviors
-
-- Promoting a search hit, snippet, or model answer into a finding without retrieving an admissible
-  source body.
-- Emitting a negative fact because retrieval failed, coverage was partial, or the subject was
-  unreachable.
-- Fabricating or deriving any identifier, date, quantity, relationship, or affiliation not stated
-  by an accessible source.
-- Hard-coding domain vocabulary, dimension names, or project paths into this Core.
-- Treating a missing profile field as license to continue with assumed defaults.
-- Claiming a consuming project's schema paths, stores, or configuration as framework-owned
-  resources.
-- Silently discarding older conflicting sources because newer ones are easier to quote.

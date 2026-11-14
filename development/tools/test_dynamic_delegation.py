@@ -147,11 +147,16 @@ def test_dynamic_classification_contract(policy, facts, expected):
 
 
 def test_no_master_plan_or_legacy_ceremony_for_dynamic_direct(policy):
-    assert policy["defaults"]["compatibility"] == "dynamic"
+    assert "compatibility" not in policy["defaults"]
+    assert "compatibility" not in policy
     assert policy["defaults"]["mode"] == "auto"
     assert not policy["modes"]["direct"]["master_plan_required"]
-    assert not policy["compatibility"]["dynamic"]["explicit_selection_required"]
-    assert policy["compatibility"]["legacy"]["explicit_selection_required"]
+    fast = policy["modes"]["direct"]["inline_fast_path"]
+    assert fast["eligibility"] == "same_context_known_bounded_low_risk"
+    for gate in ("formal_brief_required", "persistent_task_record_required",
+                 "fingerprint_required", "budget_ledger_required"):
+        assert fast[gate] is False
+    assert fast["authority_required"] and fast["current_validation_required"]
     assert policy["supervision"]["interactive"]["missing_authority"] == "ask_and_pause_affected_work"
     assert policy["supervision"]["unattended"]["missing_authority"] == "block_and_report"
 
@@ -179,12 +184,44 @@ def test_mandatory_high_risk_categories_cannot_disappear(policy):
     assert policy["review"]["mandatory_high_risk"] is True
 
 
-def test_exploration_needs_separate_bounded_experiment_authority(policy):
-    exploratory = policy["modes"]["exploratory"]
-    assert exploratory["read_only_by_default"] is True
-    assert exploratory["experiments_require_explicit_bounded_authority"] is True
-    assert not _budget_allows(policy, {}, "max_experiments")
-    assert _budget_allows(policy, {}, "max_exploration_passes", "max_total_assignments")
+def _local_experiment(policy, *, authorized=True, isolated=True, external=False,
+                      production=False, permission_expansion=False, used=0):
+    """Interpret only the local allowance; rejection does not grant wider authority."""
+    local = policy["modes"]["exploratory"]["local_experiments"]
+    if local["existing_task_authority_required"] and not authorized:
+        return "BLOCKED"
+    if local["isolated_workspace_required"] and not isolated:
+        return "BLOCKED"
+    for fact, gate in ((external, "external_side_effects"),
+                       (production, "production_effects"),
+                       (permission_expansion, "permission_expansion")):
+        if fact and local[gate] == "forbidden":
+            return "BLOCKED"
+    return "ALLOW_LOCAL" if _budget_allows(policy, {"max_experiments": used}, "max_experiments") else "BLOCKED"
+
+
+@pytest.mark.parametrize("facts,expected", [
+    ({}, "ALLOW_LOCAL"),
+    ({"used": 1}, "ALLOW_LOCAL"),
+    ({"used": 2}, "BLOCKED"),
+    ({"authorized": False}, "BLOCKED"),
+    ({"isolated": False}, "BLOCKED"),
+    ({"external": True}, "BLOCKED"),
+    ({"production": True}, "BLOCKED"),
+    ({"permission_expansion": True}, "BLOCKED"),
+])
+def test_local_experiments_are_bounded_not_new_authority(policy, facts, expected):
+    assert policy["modes"]["exploratory"]["read_only_by_default"] is True
+    assert policy["budgets"]["max_experiments"] == 2
+    assert _local_experiment(policy, **facts) == expected
+
+
+def test_retired_compatibility_is_not_deployed(tmp_path):
+    archive = ROOT.parents[1] / "legacy" / ROOT.name / "legacy-compatibility.md"
+    assert archive.is_file()
+    assert not (ROOT / "references" / archive.name).exists()
+    payload = deploy.build_payload(deploy.DEFAULT_MANIFEST, tmp_path / "staging")
+    assert not list(payload["payload_root"].rglob(archive.name))
 
 
 def test_every_budget_has_a_finite_boundary_and_never_auto_expands(policy):
@@ -492,5 +529,20 @@ def test_role_modes_are_represented_in_native_and_alternate_profile_contracts(ca
     for name in (role, role + "-deepseek"):
         profile = tomllib.loads((ROOT / "agents" / (name + ".toml")).read_text(encoding="utf-8"))
         instructions = profile["developer_instructions"]
-        for mode in modes:
-            assert re.search(r"\b" + re.escape(mode) + r"\b", instructions), (name, mode)
+        assert f"roles/{role}.md" in instructions
+        # Behavior belongs to the role module, not duplicated in every model binding.
+        assert len(instructions.splitlines()) <= 2
+
+
+def test_all_profiles_load_existing_canonical_role_without_copying_it():
+    tomllib = pytest.importorskip("tomllib")
+    for path in (ROOT / "agents").glob("*.toml"):
+        profile = tomllib.loads(path.read_text(encoding="utf-8"))
+        if "developer_instructions" not in profile:
+            continue
+        instruction = profile["developer_instructions"]
+        modules = re.findall(r"roles/[a-z-]+\.md", instruction)
+        assert len(modules) == 1, path
+        assert (ROOT / modules[0]).is_file(), path
+        assert len(instruction.splitlines()) <= 2, path
+        assert profile["model"] and profile["model_reasoning_effort"]
