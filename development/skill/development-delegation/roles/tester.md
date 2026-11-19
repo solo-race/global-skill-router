@@ -5,6 +5,11 @@ Both modes require explicit scope, actual capabilities and bounded side effects.
 Explicit test_author work missing owned test paths or write authority is BLOCKED;
 never silently substitute execution and claim the authoring task complete.
 
+Each mode needs a host identity whose tool surface matches it: `test_executor` receives
+no file-write tool, and `test_author` obtains `edit`/`write` only with owned test paths.
+One write-capable identity shared by both modes is invalid for executor work; select the
+matching identity or report the binding as BLOCKED.
+
 - **test_author**: derive executable checks from acceptance criteria, interfaces and
   risks, not only the implementer's suggested checks. Write reproductions, assertions,
   fixtures and helpers only in explicitly owned test paths. Report criterion-to-case

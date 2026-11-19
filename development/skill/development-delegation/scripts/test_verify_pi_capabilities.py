@@ -127,6 +127,42 @@ def test_missing_injection_failure_semantics_is_rejected(tmp_path):
     assert "INJECTION_FAILURE_NOT_BLOCKED" in _codes(result)
 
 
+def test_tester_modes_bind_separate_identities(tmp_path):
+    bindings = yaml.safe_load(BINDINGS.read_text(encoding="utf-8"))
+    modes = bindings["roles"]["tester"]["modes"]
+    assert set(modes) == {"test_executor", "test_author"}
+    assert modes["test_executor"]["agent_profile"] != modes["test_author"]["agent_profile"]
+    assert not {"edit", "write"} & set(modes["test_executor"]["tools"])
+    assert {"edit", "write"} <= set(modes["test_author"]["tools"])
+    assert "write_owned_scope" in modes["test_author"]["capabilities"]
+    assert modes["test_author"]["requires_owned_test_paths"] is True
+    result = VERIFY.verify(BINDINGS, ROOT, _agent_dir(tmp_path), _catalog())
+    assert result["ok"], result["errors"]
+
+
+def test_executor_with_shared_write_surface_is_rejected(tmp_path):
+    bindings = yaml.safe_load(BINDINGS.read_text(encoding="utf-8"))
+    bindings["roles"]["tester"]["tools"].append("edit")
+    bindings["roles"]["tester"]["modes"]["test_executor"]["tools"].append("edit")
+    modified = tmp_path / "pi-bindings.yaml"
+    modified.write_text(yaml.safe_dump(bindings, sort_keys=False), encoding="utf-8")
+    result = VERIFY.verify(modified, ROOT, _agent_dir(tmp_path), _catalog())
+    assert not result["ok"]
+    assert "WRITE_SURFACE_UNDECLARED" in _codes(result)
+
+
+def test_missing_author_identity_blocks_only_that_mode(tmp_path):
+    agents = _agent_dir(tmp_path)
+    (agents / "tester-author.md").unlink()
+    result = VERIFY.verify(BINDINGS, ROOT, agents, _catalog())
+    assert not result["ok"]
+    missing = {
+        error["subject"] for error in result["errors"]
+        if error["code"] == "IDENTITY_NOT_INSTALLED"
+    }
+    assert missing == {"tester.test_author"}
+
+
 def test_frontmatter_parser_reads_tools_and_identity():
     profile = VERIFY._frontmatter(PROFILES / "planner.md")
     assert profile["name"] == "planner"

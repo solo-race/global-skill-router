@@ -205,6 +205,58 @@ def _mcp_errors(
         )
 
 
+WRITE_TOOLS = {"edit", "write"}
+
+
+def _write_surface_errors(subject, spec, capabilities, tools, profile_tools, report) -> None:
+    """A write tool is only legal for a declared write capability or bound output."""
+
+    declared = set(tools) if isinstance(tools, list) else set()
+    exposed = WRITE_TOOLS & (declared | set(profile_tools))
+    if not exposed:
+        return
+    if "write_owned_scope" in capabilities:
+        return
+    if spec.get("write_scope") == "bound_output_only":
+        return
+    report.error(
+        "WRITE_SURFACE_UNDECLARED", subject,
+        f"exposes {sorted(exposed)} without write_owned_scope or bound_output_only",
+    )
+
+
+def _contract_errors(subject, spec, rules, skill_root, agent_dir, catalog, report) -> None:
+    """Check one role, variant, or mode binding against its declared capability."""
+
+    tools = spec.get("tools")
+    if not (isinstance(tools, list) or tools == "assignment_scoped"):
+        report.error("ROLE_TOOLS_INVALID", subject, "binding must declare tools or assignment_scoped")
+        return
+    capabilities = spec.get("capabilities")
+    if not isinstance(capabilities, list) or not capabilities:
+        report.error("ROLE_CAPABILITIES_MISSING", subject, "binding must declare capabilities")
+        return
+    if tools != "assignment_scoped":
+        _capability_rule_errors(subject, spec, rules, report)
+    forbidden = set((rules.get("independent_review") or {}).get("forbids") or [])
+    if spec.get("mutation") == "forbidden" and forbidden & set(tools or []):
+        report.error(
+            "ROLE_MUTATION_CONTRADICTION", subject,
+            f"mutation is forbidden but tools include {sorted(forbidden & set(tools))}",
+        )
+    profile = _profile_errors(subject, spec, Path(skill_root), agent_dir, report)
+    profile_tools = _tools(_frontmatter(Path(skill_root) / profile)) if profile else []
+    _write_surface_errors(subject, spec, capabilities, tools, profile_tools, report)
+    if "graph_discovery" in capabilities:
+        _mcp_errors(
+            subject,
+            spec.get("required_mcp") or {},
+            _frontmatter(Path(skill_root) / profile) if profile else None,
+            catalog,
+            report,
+        )
+
+
 def verify(
     bindings_path: Path = DEFAULT_BINDINGS,
     skill_root: Path = SKILL_ROOT,
@@ -232,53 +284,27 @@ def verify(
 
     rules = bindings.get("capability_rules") or {}
     roles = bindings.get("roles") or {}
-    blocked: list[str] = []
     for role, spec in roles.items():
         if not isinstance(spec, dict):
             report.error("ROLE_INVALID", role, "role binding must be a mapping")
             continue
-        tools = spec.get("tools")
-        if not (isinstance(tools, list) or tools == "assignment_scoped"):
-            report.error("ROLE_TOOLS_INVALID", role, "role must declare tools or assignment_scoped")
-        capabilities = spec.get("capabilities")
-        if not isinstance(capabilities, list) or not capabilities:
-            report.error("ROLE_CAPABILITIES_MISSING", role, "role must declare capabilities")
-        elif tools != "assignment_scoped":
-            _capability_rule_errors(role, spec, rules, report)
-        forbidden = set((rules.get("independent_review") or {}).get("forbids") or [])
-        if spec.get("mutation") == "forbidden" and forbidden & set(tools or []):
-            blocked.append(role)
-            report.error(
-                "ROLE_MUTATION_CONTRADICTION", role,
-                f"mutation is forbidden but tools include {sorted(forbidden & set(tools))}",
-            )
-        profile = _profile_errors(
-            role, spec, Path(skill_root), agent_dir, report
-        )
-        if capabilities and "graph_discovery" in capabilities:
-            required = spec.get("required_mcp") or {}
-            _mcp_errors(role, required, _frontmatter(Path(skill_root) / profile) if profile else None,
-                        catalog, report)
+        _contract_errors(role, spec, rules, skill_root, agent_dir, catalog, report)
         for name, variant in (spec.get("variants") or {}).items():
             subject = f"{role}.{name}"
             if not isinstance(variant, dict) or not variant.get("select_when"):
                 report.error("VARIANT_INVALID", subject, "variant needs select_when and a binding")
                 continue
-            variant_profile = _profile_errors(
-                subject, variant, Path(skill_root), agent_dir, report
-            )
-            if "graph_discovery" in (variant.get("capabilities") or []):
-                _mcp_errors(
-                    subject,
-                    variant.get("required_mcp") or {},
-                    _frontmatter(Path(skill_root) / variant_profile) if variant_profile else None,
-                    catalog,
-                    report,
-                )
+            _contract_errors(subject, variant, rules, skill_root, agent_dir, catalog, report)
+        for name, mode in (spec.get("modes") or {}).items():
+            subject = f"{role}.{name}"
+            if not isinstance(mode, dict):
+                report.error("MODE_INVALID", subject, "mode binding must be a mapping")
+                continue
+            _contract_errors(subject, mode, rules, skill_root, agent_dir, catalog, report)
     if catalog is None:
         report.warn("live MCP catalog not checked; run `pi mcp list --json` and pass --mcp-catalog")
-    report_data = _report(report, {"roles": len(roles), "blocked": blocked})
-    return report_data
+    blocked = sorted({error["subject"] for error in report.errors})
+    return _report(report, {"roles": len(roles), "blocked": blocked})
 
 
 def _report(report: Report, summary: dict) -> dict:

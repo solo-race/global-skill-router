@@ -410,6 +410,33 @@ def test_pi_bindings_declare_the_tool_surface_that_satisfies_each_capability():
     assert bindings["roles"]["reviewer"]["mutation"] == "forbidden"
 
 
+def test_pi_tester_modes_expose_disjoint_tool_surfaces():
+    bindings = _bindings()
+    tester = bindings["roles"]["tester"]
+    assert tester["default_mode"] == "test_executor"
+    modes = tester["modes"]
+    assert set(modes) == {"test_executor", "test_author"}
+    executor, author = modes["test_executor"], modes["test_author"]
+    assert executor["agent_profile"] != author["agent_profile"]
+    # The executor must not be able to edit or write, and the author must be able to.
+    assert not {"edit", "write"} & set(executor["tools"])
+    assert {"edit", "write"} <= set(author["tools"])
+    assert "write_owned_scope" in author["capabilities"]
+    assert "write_owned_scope" not in executor["capabilities"]
+    assert author["requires_owned_test_paths"] is True
+    assert not {"edit", "write"} & set(tester["tools"])
+    for mode in (executor, author):
+        profile = yaml.safe_load(
+            (ROOT / mode["agent_profile"]).read_text(encoding="utf-8").split("---")[1]
+        )
+        assert profile["name"] == mode["identity"]
+        assert set(mode["tools"]) <= set(profile["tools"])
+    executor_profile = yaml.safe_load(
+        (ROOT / executor["agent_profile"]).read_text(encoding="utf-8").split("---")[1]
+    )
+    assert not {"edit", "write"} & set(executor_profile["tools"])
+
+
 def test_pi_shipped_profiles_cover_their_bindings_and_augment_missing_capability():
     bindings = _bindings()
     shipped = bindings["roles"]["planner"]["agent_profile"]
@@ -456,6 +483,7 @@ def test_pi_adapter_is_deployed_with_its_owner_and_stays_out_of_scenario_routes(
                      "references/pi-package-filter.json", "scripts/apply_pi_filter.py",
                      "scripts/verify_pi_capabilities.py",
                      "agents/pi/planner.md", "agents/pi/tester.md",
+                     "agents/pi/tester-author.md",
                      "agents/pi/codebase-memory-scout.md"):
         assert (module / relative).is_file(), relative
     manifest = yaml.safe_load(deploy.DEFAULT_MANIFEST.read_text(encoding="utf-8"))

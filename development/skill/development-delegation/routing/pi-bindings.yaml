@@ -41,6 +41,7 @@ roles:
     context: fresh
     tools: [read, grep, find, ls, bash, write, contact_supervisor]
     capabilities: [read_source, local_discovery]
+    write_scope: bound_output_only
     notes: Builtin scout writes only its bound output artifact; source mutation stays forbidden.
     variants:
       graph:
@@ -51,6 +52,24 @@ roles:
         context: fresh
         async_required: true
         capabilities: [read_source, graph_discovery]
+        tools:
+          - read
+          - grep
+          - find
+          - ls
+          - bash
+          - mcp:codebase-memory-mcp/search_graph
+          - mcp:codebase-memory-mcp/query_graph
+          - mcp:codebase-memory-mcp/trace_path
+          - mcp:codebase-memory-mcp/get_file_outline
+          - mcp:codebase-memory-mcp/get_code_snippet
+          - mcp:codebase-memory-mcp/get_graph_schema
+          - mcp:codebase-memory-mcp/compare_graphs
+          - mcp:codebase-memory-mcp/get_architecture
+          - mcp:codebase-memory-mcp/search_code
+          - mcp:codebase-memory-mcp/list_projects
+          - mcp:codebase-memory-mcp/index_status
+          - mcp:codebase-memory-mcp/check_index_coverage
         required_mcp:
           server: codebase-memory-mcp
           tools:
@@ -94,9 +113,27 @@ roles:
     registered_agent_required: true
     default_mode: test_executor
     context: fresh
-    tools: [read, grep, find, ls, bash, edit, write, contact_supervisor]
+    tools: [read, grep, find, ls, bash, contact_supervisor]
     capabilities: [read_source, run_bounded_checks]
-    notes: edit and write exist only for explicitly owned test_author paths; production repair is forbidden.
+    modes:
+      test_executor:
+        identity: tester
+        binding: shipped_agent_profile
+        agent_profile: agents/pi/tester.md
+        context: fresh
+        tools: [read, grep, find, ls, bash, contact_supervisor]
+        capabilities: [read_source, run_bounded_checks]
+        mutation: authorized_test_artifacts_only
+      test_author:
+        identity: tester-author
+        binding: shipped_agent_profile
+        agent_profile: agents/pi/tester-author.md
+        context: fresh
+        tools: [read, grep, find, ls, bash, edit, write, contact_supervisor]
+        capabilities: [read_source, run_bounded_checks, write_owned_scope]
+        mutation: explicitly_owned_tests_only
+        requires_owned_test_paths: true
+    notes: The two modes have separate identities; executor work never receives a write tool.
   reviewer:
     identity: reviewer
     binding: package_builtin

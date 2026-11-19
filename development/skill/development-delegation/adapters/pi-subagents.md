@@ -47,7 +47,8 @@ makes the assignment `BLOCKED`, never a degraded success.
 | `scout.graph` | Codebase Memory graph discovery | [agents/pi/codebase-memory-scout.md](../agents/pi/codebase-memory-scout.md): read tools, inspection `bash`, and read-only `mcp:codebase-memory-mcp/*` selectors. |
 | `planner` | read evidence, decide, no mutation | [agents/pi/planner.md](../agents/pi/planner.md): `read`, `grep`, `find`, `ls`, `contact_supervisor` only. |
 | `implementer` | bounded source mutation and checks | Builtin `worker` allowlist (`read`, `grep`, `find`, `ls`, `bash`, `edit`, `write`). |
-| `tester` | execute approved checks | [agents/pi/tester.md](../agents/pi/tester.md): `bash` plus `edit`/`write` for explicitly owned test-author paths only. |
+| `tester` | execute approved checks | [agents/pi/tester.md](../agents/pi/tester.md): `bash` plus read tools, with no `edit`/`write`. |
+| `tester.author` | author checks in owned test paths | [agents/pi/tester-author.md](../agents/pi/tester-author.md): the executor surface plus `edit`/`write`, only with owned test paths. |
 | `reviewer` | independent read-only review | Builtin `reviewer` allowlist: no `edit`, no `write`, no `bash`. |
 | `specialist` | task-selected | The assignment must name an installed identity whose allowlist covers the specialty; otherwise `BLOCKED`. |
 
@@ -66,6 +67,10 @@ Injection rules:
 - `inheritSkills: false` means role knowledge is not inherited. The assignment names
   the role module path under the loaded delegation skill root, and each shipped profile
   instructs the child to read it.
+- The two tester modes use separate identities. `test_executor` never receives a write
+  tool; `test_author` receives `edit`/`write` with owned test paths. Sharing one
+  write-capable identity across both modes is a binding defect, not an acceptable
+  compromise.
 - The builtin `worker` lists no MCP selectors. When an authorized scope needs MCP tools,
   bind a deployment-local writer profile that adds the exact `mcp:` selectors and launch
   it in the background. Without that profile the assignment is `BLOCKED`; do not widen
@@ -87,7 +92,7 @@ blocked identities; treat each one as unavailable rather than substituting a rou
 | Scout | The graph variant declares the Codebase Memory selectors, the live catalog exposes them, and the profile is installed. |
 | Planner | The installed planner profile exposes only read tools and cannot modify files. |
 | Worker | The bound writer allowlist covers the authorized work, or its MCP augmentation exists and the assignment is `BLOCKED` otherwise. |
-| Tester | The installed tester profile can run the approved checks through `bash`. |
+| Tester | The executor profile has `bash` and no write tool; the author mode binds a separate write-capable identity with owned test paths. |
 | Reviewer | The bound reviewer surface has no mutation tools and the launch keeps fresh context. |
 | Failure handling | A missing identity or tool is reported as `BLOCKED`, both by the contract and by the verifier. |
 
