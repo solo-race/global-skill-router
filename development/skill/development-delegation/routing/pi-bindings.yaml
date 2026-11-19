@@ -1,0 +1,127 @@
+# Declarative role-to-host bindings interpreted by the supervisor; not an executable
+# scheduler and not a permission grant. Capability requirements stay in capabilities.yaml.
+# The binding selects an executor and the tool surface that executor must receive.
+schema_version: 1
+kind: declarative-pi-role-bindings
+host:
+  package: pi-subagents
+  interface: adapters/pi-subagents.md
+  launch_tool: subagent
+  loader_tool: subagents_enable
+  authorization: operator_requested_delegation
+  async_default: true
+  availability_source: runtime_agent_catalog
+  agent_install_root: ~/.pi/agent/agents
+injection:
+  mechanism: strict_tool_allowlist
+  ambient_extension_inheritance: none
+  skill_inheritance: none
+  role_knowledge_source: assignment_brief
+  mcp_selector_prefix: "mcp:"
+  mcp_via_ambient_adapter_requires_background: true
+  missing_identity_or_tool: BLOCKED
+  verifier: scripts/verify_pi_capabilities.py
+capability_rules:
+  read_source: {needs_one_of: [read, grep, find, ls]}
+  read_evidence: {needs_one_of: [read, grep, find, ls]}
+  local_discovery: {needs_all: [read, grep]}
+  write_owned_scope: {needs_all: [edit, write]}
+  run_bounded_checks: {needs_all: [bash]}
+  graph_discovery: {needs_required_mcp: true}
+  independent_review: {forbids: [edit, write]}
+identity_selection:
+  preserve_explicit_choices: true
+  silent_substitution: false
+  generic_host_agent_allowed_when_authorized: true
+  unavailable: blocked
+roles:
+  scout:
+    identity: scout
+    binding: package_builtin
+    context: fresh
+    tools: [read, grep, find, ls, bash, write, contact_supervisor]
+    capabilities: [read_source, local_discovery]
+    notes: Builtin scout writes only its bound output artifact; source mutation stays forbidden.
+    variants:
+      graph:
+        identity: codebase-memory-scout
+        binding: shipped_agent_profile
+        agent_profile: agents/pi/codebase-memory-scout.md
+        select_when: structural_discovery_requires_codebase_memory
+        context: fresh
+        async_required: true
+        capabilities: [read_source, graph_discovery]
+        required_mcp:
+          server: codebase-memory-mcp
+          tools:
+            - search_graph
+            - query_graph
+            - trace_path
+            - get_file_outline
+            - get_code_snippet
+            - get_graph_schema
+            - compare_graphs
+            - get_architecture
+            - search_code
+            - list_projects
+            - index_status
+            - check_index_coverage
+  planner:
+    identity: planner
+    binding: shipped_agent_profile
+    agent_profile: agents/pi/planner.md
+    registered_agent_required: true
+    context: fresh
+    tools: [read, grep, find, ls, contact_supervisor]
+    capabilities: [read_source, read_evidence]
+    mutation: forbidden
+  implementer:
+    identity: worker
+    binding: package_builtin
+    write_scope: brief_only
+    context: fresh
+    tools: [read, grep, find, ls, bash, edit, write, contact_supervisor]
+    capabilities: [read_source, write_owned_scope, run_bounded_checks]
+    augmentation:
+      select_when: authorized_scope_requires_mcp_tools
+      resolution: deployment_local_writer_profile_with_mcp_selectors
+      async_required: true
+      unavailable: BLOCKED
+  tester:
+    identity: tester
+    binding: shipped_agent_profile
+    agent_profile: agents/pi/tester.md
+    registered_agent_required: true
+    default_mode: test_executor
+    context: fresh
+    tools: [read, grep, find, ls, bash, edit, write, contact_supervisor]
+    capabilities: [read_source, run_bounded_checks]
+    notes: edit and write exist only for explicitly owned test_author paths; production repair is forbidden.
+  reviewer:
+    identity: reviewer
+    binding: package_builtin
+    independent_context_required: true
+    context: fresh
+    tools: [read, grep, find, ls, watchdog_diff, contact_supervisor]
+    capabilities: [read_source, read_evidence, independent_review]
+    mutation: forbidden
+  specialist:
+    identity: task_selected
+    binding: dynamic
+    capability_fit_required: true
+    context: fresh
+    tools: assignment_scoped
+    capabilities: [assignment_scoped]
+filtered:
+  source: references/pi-package-filter.json
+  tool: scripts/apply_pi_filter.py
+  package_skills: [pi-subagents, council-mode]
+  builtin_agents: [delegate, oracle, researcher, evidence-auditor]
+  # Paths are module-relative; bare names refer to sibling managed modules.
+  coverage:
+    pi-subagents: adapters/pi-subagents.md
+    council-mode: no_managed_route
+    delegate: roles/implementer.md
+    oracle: roles/reviewer.md
+    researcher: research-investigation
+    evidence-auditor: research-investigation

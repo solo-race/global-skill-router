@@ -49,6 +49,13 @@ capabilities fit. Do not demand pre-registration of five roles. If no binding is
 adequate, ask for the missing choice instead of inventing one. Loading a role grants
 no tools or authority. Host-denied operations remain denied under every mode.
 
+On a Pi host, resolve the identity through `routing/pi-bindings.yaml` and follow
+`adapters/pi-subagents.md` for the launch interface and capability injection. A child
+receives only its agent's declared tools, so the binding's tool surface must actually be
+registered; a missing identity or tool is `BLOCKED`. Identities filtered by
+`references/pi-package-filter.json` are unavailable; do not re-enable one to fill a
+gap, and report an ineffective filter before delegating.
+
 Supervisor owns classification, assignment, acceptance and escalation. Assign only
 needed roles; it may perform a small role inline only when authorized, with explicit
 role boundaries and actual evidence. Independent review must use a separate reviewer

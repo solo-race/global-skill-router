@@ -9,6 +9,7 @@ Deployment checks exercise the real payload builder in a disposable directory.
 from __future__ import annotations
 
 import importlib.util
+import json
 import re
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -27,6 +28,14 @@ SPEC.loader.exec_module(deploy)
 
 def _load(name):
     return yaml.safe_load((ROOT / "routing" / name).read_text(encoding="utf-8"))
+
+
+def _bindings():
+    return _load("pi-bindings.yaml")
+
+
+def _filter_spec():
+    return json.loads((ROOT / "references" / "pi-package-filter.json").read_text(encoding="utf-8"))
 
 
 def _check_local_links(root):
@@ -54,11 +63,15 @@ def test_deployed_dynamic_contract_is_complete_and_private(tmp_path):
     assert (deployed / "MODULE.md").read_bytes() == (ROOT / "SKILL.md").read_bytes()
     assert not list(deployed.rglob("SKILL.md"))
     assert not (deployed / "agents" / "openai.yaml").exists()
-    for directory in ("routing", "roles", "loops", "modules", "references"):
+    for directory in ("adapters", "routing", "roles", "loops", "modules", "references", "scripts"):
         sources = list((ROOT / directory).rglob("*"))
         assert sources, directory
         for source in sources:
-            if source.is_file():
+            if (
+                source.is_file()
+                and "__pycache__" not in source.parts
+                and source.suffix not in {".pyc", ".pyo"}
+            ):
                 assert (deployed / source.relative_to(ROOT)).read_bytes() == source.read_bytes()
     # Role profiles and their owner-selected runtime bindings travel unchanged;
     # only the top-level discovery metadata is omitted from a private module.
@@ -297,6 +310,163 @@ def test_declarative_paths_are_self_contained_and_knowledge_not_duplicated(polic
             if isinstance(data, dict) and data.get("kind") == kind:
                 owners.append(candidate)
         assert owners == [ROOT / "routing" / filename]
+
+
+PI_ROLE_BINDINGS = {
+    "scout": ("scout", "package_builtin"),
+    "planner": ("planner", "shipped_agent_profile"),
+    "implementer": ("worker", "package_builtin"),
+    "tester": ("tester", "shipped_agent_profile"),
+    "reviewer": ("reviewer", "package_builtin"),
+    "specialist": ("task_selected", "dynamic"),
+}
+
+
+def test_pi_bindings_map_every_delegation_role_to_one_execution_identity(capabilities):
+    bindings = _bindings()
+    assert bindings["schema_version"] == capabilities["schema_version"] == 1
+    assert bindings["kind"] == "declarative-pi-role-bindings"
+    assert set(bindings["roles"]) == set(capabilities["roles"])
+    for role, (identity, binding) in PI_ROLE_BINDINGS.items():
+        spec = bindings["roles"][role]
+        assert (spec["identity"], spec["binding"]) == (identity, binding), role
+        assert spec["context"] == "fresh"
+    for role in ("planner", "tester"):
+        assert bindings["roles"][role]["registered_agent_required"] is True
+    assert bindings["roles"]["implementer"]["write_scope"] == "brief_only"
+    assert bindings["roles"]["reviewer"]["independent_context_required"] is True
+    assert bindings["roles"]["specialist"]["capability_fit_required"] is True
+    assert bindings["host"]["launch_tool"] == "subagent"
+    assert bindings["host"]["loader_tool"] == "subagents_enable"
+    assert bindings["host"]["authorization"] == "operator_requested_delegation"
+    assert bindings["identity_selection"]["silent_substitution"] is False
+    assert bindings["identity_selection"]["unavailable"] == "blocked"
+
+
+def test_pi_duplicate_filter_disables_only_unbound_identities():
+    bindings = _bindings()
+    spec = _filter_spec()
+    entry = spec["packages"][0]
+    assert entry["source"] == f"npm:{bindings['host']['package']}"
+    assert entry["prompts"] == []
+    assert entry["skills"] == [f"!{name}" for name in bindings["filtered"]["package_skills"]]
+    disabled = sorted(
+        name for name, override in spec["subagents"]["agentOverrides"].items()
+        if override.get("disabled") is True
+    )
+    assert disabled == sorted(bindings["filtered"]["builtin_agents"])
+    assert set(bindings["filtered"]["coverage"]) == set(disabled) | set(
+        bindings["filtered"]["package_skills"]
+    )
+    bound = {spec["identity"] for spec in bindings["roles"].values()}
+    assert not bound & set(disabled)
+    assert not bound & set(bindings["filtered"]["package_skills"])
+    # Every live binding stays available: filtered identities are never a role fallback.
+    assert bound == {"scout", "planner", "worker", "tester", "reviewer", "task_selected"}
+
+
+def test_pi_binding_paths_resolve_against_the_skill_root():
+    bindings = _bindings()
+    references = [
+        bindings["host"]["interface"],
+        bindings["filtered"]["source"],
+        bindings["filtered"]["tool"],
+        bindings["injection"]["verifier"],
+        *(spec["agent_profile"] for spec in bindings["roles"].values()
+          if "agent_profile" in spec),
+        *(variant["agent_profile"]
+          for spec in bindings["roles"].values()
+          for variant in (spec.get("variants") or {}).values()),
+        *(value for value in bindings["filtered"]["coverage"].values() if "/" in value),
+    ]
+    for relative in references:
+        resolved = (ROOT / relative).resolve()
+        assert resolved.is_relative_to(ROOT.resolve()) and resolved.is_file(), relative
+
+
+def test_pi_bindings_declare_the_tool_surface_that_satisfies_each_capability():
+    bindings = _bindings()
+    rules = bindings["capability_rules"]
+    assert bindings["injection"]["missing_identity_or_tool"] == "BLOCKED"
+    assert bindings["injection"]["skill_inheritance"] == "none"
+    assert bindings["injection"]["ambient_extension_inheritance"] == "none"
+    for role, spec in bindings["roles"].items():
+        assert spec["capabilities"], role
+        tools = spec["tools"]
+        if tools == "assignment_scoped":
+            continue
+        assert isinstance(tools, list) and tools, role
+        for capability in spec["capabilities"]:
+            rule = rules[capability]
+            if "needs_one_of" in rule:
+                assert set(rule["needs_one_of"]) & set(tools), (role, capability)
+            for tool in rule.get("needs_all") or []:
+                assert tool in tools, (role, capability, tool)
+            assert not set(rule.get("forbids") or []) & set(tools), (role, capability)
+    # Role knowledge is not inherited, so mutation boundaries must be visible in tools.
+    for role in ("planner", "reviewer"):
+        assert not {"edit", "write"} & set(bindings["roles"][role]["tools"])
+    assert bindings["roles"]["planner"]["mutation"] == "forbidden"
+    assert bindings["roles"]["reviewer"]["mutation"] == "forbidden"
+
+
+def test_pi_shipped_profiles_cover_their_bindings_and_augment_missing_capability():
+    bindings = _bindings()
+    shipped = bindings["roles"]["planner"]["agent_profile"]
+    for relative in (shipped, bindings["roles"]["tester"]["agent_profile"]):
+        profile = yaml.safe_load(
+            (ROOT / relative).read_text(encoding="utf-8").split("---")[1]
+        )
+        role = "planner" if "planner" in relative else "tester"
+        assert profile["name"] == bindings["roles"][role]["identity"]
+        assert set(bindings["roles"][role]["tools"]) <= set(profile["tools"])
+    planner = bindings["roles"]["planner"]["agent_profile"]
+    graph = bindings["roles"]["scout"]["variants"]["graph"]
+    assert graph["agent_profile"] != planner
+    assert graph["async_required"] is True
+    assert graph["required_mcp"]["server"] == "codebase-memory-mcp"
+    profile = yaml.safe_load(
+        (ROOT / graph["agent_profile"]).read_text(encoding="utf-8").split("---")[1]
+    )
+    for tool in graph["required_mcp"]["tools"]:
+        assert f"mcp:codebase-memory-mcp/{tool}" in profile["tools"]
+    # The builtin worker has no MCP surface; the gap must be explicit, not implied.
+    augmentation = bindings["roles"]["implementer"]["augmentation"]
+    assert augmentation["unavailable"] == "BLOCKED"
+    assert augmentation["async_required"] is True
+
+
+def test_pi_adapter_documents_the_host_interface_it_binds():
+    skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+    supervisor = (ROOT / "references" / "supervisor.md").read_text(encoding="utf-8")
+    adapter = (ROOT / "adapters" / "pi-subagents.md").read_text(encoding="utf-8")
+    assert "adapters/pi-subagents.md" in skill and "routing/pi-bindings.yaml" in skill
+    assert "routing/pi-bindings.yaml" in supervisor
+    for anchor in ("subagent(", "subagents_enable", "worktree: true", "outputReference",
+                   "context: \"fork\"", "Never invoke a filtered identity",
+                   "references/pi-package-filter.json", "mcp:",
+                   "verify_pi_capabilities.py", "BLOCKED"):
+        assert anchor in adapter, anchor
+
+
+def test_pi_adapter_is_deployed_with_its_owner_and_stays_out_of_scenario_routes(tmp_path):
+    payload = deploy.build_payload(deploy.DEFAULT_MANIFEST, tmp_path / "staging")
+    module = payload["payload_root"] / "library" / ROOT.name
+    for relative in ("adapters/pi-subagents.md", "routing/pi-bindings.yaml",
+                     "references/pi-package-filter.json", "scripts/apply_pi_filter.py",
+                     "scripts/verify_pi_capabilities.py",
+                     "agents/pi/planner.md", "agents/pi/tester.md",
+                     "agents/pi/codebase-memory-scout.md"):
+        assert (module / relative).is_file(), relative
+    manifest = yaml.safe_load(deploy.DEFAULT_MANIFEST.read_text(encoding="utf-8"))
+    assert "pi-subagents" not in {entry["name"] for entry in manifest["adapters"]}
+    for scenario in ("win-access-vba", "win-android", "wsl-python"):
+        shard = yaml.safe_load(
+            (payload["payload_root"] / "_platform" / "routes" / f"{scenario}.yaml")
+            .read_text(encoding="utf-8")
+        )
+        for candidate in shard["skills"]:
+            assert all(adapter["name"] != "pi-subagents" for adapter in candidate["adapters"])
 
 
 def _ready_batch(policy, units, *, accepted=(), failed=(), used=0):

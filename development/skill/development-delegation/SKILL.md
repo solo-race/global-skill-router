@@ -33,10 +33,16 @@ not a model or registered identity. Use only necessary roles, not a mandatory te
 Honor explicit host identities, model choices, approval and quota limits; no silent
 substitution. Registered TOMLs remain deployment-owned examples of bindings.
 A generic authorized host agent may receive a role module with scoped capabilities.
+On a Pi host, take each identity from [Pi bindings](routing/pi-bindings.yaml) and read
+the [Pi execution adapter](adapters/pi-subagents.md) before launching; a filtered
+identity is unavailable, not a fallback. The binding also declares the tool surface:
+require it to be registered for that identity, and treat a missing identity or tool as
+`BLOCKED` rather than a degraded assignment.
 
 ## Conditional references
 
 - [Supervisor, bindings, budgets and transitions](references/supervisor.md)
+- [Pi execution adapter](adapters/pi-subagents.md) and [role bindings](routing/pi-bindings.yaml)
 - [Direct execution](loops/direct.md), [planned execution](loops/planning.md),
   [exploration](loops/exploratory.md), [implementation DAG](loops/implementation.md)
 - [Independent review](modules/review.md)

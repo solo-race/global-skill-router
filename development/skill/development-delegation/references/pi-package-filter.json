@@ -1,0 +1,28 @@
+{
+  "packages": [
+    {
+      "source": "npm:pi-subagents",
+      "prompts": [],
+      "skills": [
+        "!pi-subagents",
+        "!council-mode"
+      ]
+    }
+  ],
+  "subagents": {
+    "agentOverrides": {
+      "delegate": {
+        "disabled": true
+      },
+      "oracle": {
+        "disabled": true
+      },
+      "researcher": {
+        "disabled": true
+      },
+      "evidence-auditor": {
+        "disabled": true
+      }
+    }
+  }
+}

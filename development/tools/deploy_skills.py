@@ -993,7 +993,11 @@ def _plan_result(target_root: Path, payload: dict) -> dict:
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Build/deploy the routed global skill payload.")
-    parser.add_argument("--target-root", default=None, help="target skill root")
+    parser.add_argument(
+        "--target-root",
+        default=None,
+        help="target skill root (default: ~/.agents/skills)",
+    )
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--dry-run", action="store_true", help="plan only (the default)")
     modes.add_argument("--apply", action="store_true", help="apply the assembled payload")
@@ -1004,7 +1008,7 @@ def parse_args(argv=None):
 
 
 def _default_target_root() -> Path:
-    return Path.home() / ".codex" / "skills"
+    return Path.home() / ".agents" / "skills"
 
 
 def main(argv=None):

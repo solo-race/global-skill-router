@@ -96,7 +96,7 @@ skills:
     deps: []
     composed_of: []
     entrypoint: true
-    version: "0.2.2"
+    version: "0.3.0"
     description: Select risk-based execution paths and assign role modules on demand while preserving authority, independent review, and evidence gates.
   - name: photoshop-ops
     path: development/skill/photoshop-ops

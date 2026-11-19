@@ -127,8 +127,9 @@ For heavier skills, extend toward the five-layer stack reviewed in `architecture
   capabilities, even if a development directory happens to exist. Planned entries never enter
   route shards or `library/`.
 - **Managed operations:** the standard commands are `uv run python development/tools/deploy_skills.py`
-  (read-only plan), `--apply`, `--verify`, and `--rollback`; pass `--target-root PATH` for a
-  controlled user/project skill root. Apply stages a complete payload, keeps at most one
+  (read-only plan), `--apply`, `--verify`, and `--rollback`. The default target root is the Pi user
+  skill catalog `~/.agents/skills`; pass `--target-root PATH` for a project, test, or other host
+  skill root. Apply stages a complete payload, keeps at most one
   tool-owned previous snapshot beside the target root, verifies hashes/layout/routes, and
   restores the previous managed router if replacement or verification fails.
 - **Drift and coexistence:** `--verify` reports missing, extra, or changed managed files without
